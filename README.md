@@ -1,12 +1,11 @@
 Yet Another Stupid Programming Language
----------------------------------------
+=======================================
 
 * Static type-checking
-* Purity
+* Purity (or at least no mutation)
+* Algebraic Data Types
 * Type classes
 * Better existential types
-* Maybe S-expressions
-* Some other stuff
 
 Numeric Context
 ---------------
