@@ -1,6 +1,12 @@
 #lang plai
 
+(define-type BINDINGS
+  [binding (s symbol?) (v SEXP?) (b BINDINGS?)]
+  [empty-binding])
+
 (define-type SEXP
+  [bind (bindings BINDINGS?) (body SEXP?)]
+  [sym (n symbol?)]
   [num (n number?)]
   [int32 (n number?)]
   [float (n number?)]
@@ -24,10 +30,13 @@
 
 (define (parse num-context sexp)
   (cond
+    [(symbol? sexp) (sym sexp)]
     [(number? sexp) (get-number num-context sexp)]
     [(string? sexp) (str sexp)]
     [(list? sexp)
      (case (first sexp)
+       [(let) (bind (parse-bind num-context (second sexp)) 
+                (parse num-context (third sexp)))]
        [(num) (parse 'num (second sexp))]
        [(int32) (parse 'int32 (second sexp))]
        [(float) (parse 'float (second sexp))]
@@ -52,6 +61,12 @@
        [(%) ((get-mod num-context) 
                  (parse num-context (second sexp))
                  (parse num-context (third sexp)))])]))
+
+(define (parse-bind num-context s)
+  (if (empty? s)
+      (empty-binding)
+      (binding (caar s) (parse num-context (cadar s))
+               (parse-bind num-context (cdr s)))))
 
 (define (get-add num-context)
   (case num-context
@@ -101,29 +116,37 @@
              (int32 (to-int32 n)))])
       (error "Expected integer type")))
 
-(define (interp sexp)
+(define (interp env sexp)
   (type-case SEXP sexp
+    [sym (s) (hash-ref env s)]
     [num (n) n]
     [float (n) n]
     [int32 (n) n]
+    [bind (bindings body) (interp (do-binding env bindings) body)]
     [cast (t n) (do-cast t (interp n))]
     [str (s) s]
-    [if-then (i t e) (if (interp i) (interp t) (interp e))]
-    [add (lhs rhs) (num-op + lhs rhs)]
-    [sub (lhs rhs) (num-op - lhs rhs)]
-    [mul (lhs rhs) (num-op * lhs rhs)]
-    [div (lhs rhs) (num-op / lhs rhs)]
-    [mod (lhs rhs) (num-op modulo lhs rhs)]
-    [addf (lhs rhs) (float-op + lhs rhs)]
-    [subf (lhs rhs) (float-op - lhs rhs)]
-    [mulf (lhs rhs) (float-op * lhs rhs)]
-    [divf (lhs rhs) (float-op / lhs rhs)]
-    [add32 (lhs rhs) (int32-op + lhs rhs)]
-    [sub32 (lhs rhs) (int32-op - lhs rhs)]
-    [mul32 (lhs rhs) (int32-op * lhs rhs)]
-    [div32 (lhs rhs) (int32-op / lhs rhs)]
-    [mod32 (lhs rhs) (int32-op modulo lhs rhs)]
+    [if-then (i t e) (if (interp env i) (interp env t) (interp env e))]
+    [add (lhs rhs) (num-op env + lhs rhs)]
+    [sub (lhs rhs) (num-op env - lhs rhs)]
+    [mul (lhs rhs) (num-op env * lhs rhs)]
+    [div (lhs rhs) (num-op env / lhs rhs)]
+    [mod (lhs rhs) (num-op env modulo lhs rhs)]
+    [addf (lhs rhs) (float-op env + lhs rhs)]
+    [subf (lhs rhs) (float-op env - lhs rhs)]
+    [mulf (lhs rhs) (float-op env * lhs rhs)]
+    [divf (lhs rhs) (float-op env / lhs rhs)]
+    [add32 (lhs rhs) (int32-op env + lhs rhs)]
+    [sub32 (lhs rhs) (int32-op env - lhs rhs)]
+    [mul32 (lhs rhs) (int32-op env * lhs rhs)]
+    [div32 (lhs rhs) (int32-op env / lhs rhs)]
+    [mod32 (lhs rhs) (int32-op env modulo lhs rhs)]
     ))
+
+(define (do-binding env bindings)
+  (type-case BINDINGS bindings
+    [empty-binding () env]
+    [binding (s v rest)
+            (do-binding (hash-set env s (interp env v)) rest)]))
 
 (define (do-cast type val)
   (case type
@@ -131,19 +154,19 @@
     [(int32) (inexact->exact (to-int32 val))]
     [(float) val]))
 
-(define (num-op fn a b)
+(define (num-op env fn a b)
   (floor
-   (fn (floor (interp a))
-       (floor (interp b)))))
+   (fn (floor (interp env a))
+       (floor (interp env b)))))
 
-(define (float-op fn a b)
-  (fn (interp a)
-      (interp b)))
+(define (float-op env fn a b)
+  (fn (interp env a)
+      (interp env b)))
 
-(define (int32-op fn a b)
+(define (int32-op env fn a b)
   (to-int32
-   (fn (to-int32 (interp a))
-       (to-int32 (interp b)))))
+   (fn (to-int32 (interp env a))
+       (to-int32 (interp env b)))))
 
 (define (repl)
-  (interp (parse 'num (read))))
+  (interp (make-immutable-hash) (parse 'num (read))))

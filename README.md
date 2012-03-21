@@ -17,3 +17,8 @@ presumed to be of that type.
     -2
     (num (+ 2147483647 2147483647))
     4294967294
+
+yaspl also includes explicit casts:
+
+    (float (->int32 (* 1.5 2.1)))
+    3.0
