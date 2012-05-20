@@ -44,5 +44,6 @@
 (define initial-nat-state 
   (eval:initial-state lifted-nat-module call-main))
 
+(pretty-display initial-bool-state)
 (eval:extract-value (eval:run initial-bool-state))
 (eval:extract-value (eval:run initial-nat-state))

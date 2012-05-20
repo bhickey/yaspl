@@ -13,7 +13,7 @@
          (module ((expr-fun->module-fun simplify-case-expr) module))
          (module ((expr-fun->module-fun wrap-cases) module))
          (module ((expr-fun->module-fun anf-expr) module))
-         (module ((expr-fun->module-fun close) module))
+         (module (close-module module))
          (module (lift-module module))
          )
     module))
@@ -267,15 +267,29 @@
     (values name (fresh-name name))))
 
 
+(define (close-module mod)
+ (match mod
+  ((module imports exports defs)
+   (define top-level
+     (for/list ((def defs) #:when (variable-definition? def))
+               (variable-definition-name def)))
+   ((expr-fun->module-fun (close top-level)) mod))))
 
-(define (close expr)
+
+(define ((close top-level) expr)
+
+  (define (remove-top-level free)
+    (filter (lambda (name) (not (member name top-level))) free))
+
   (define (recur expr)
    (match expr
     ((lambda-expr name body)
-     (define free-vars (remove name (free-variables body)))
+     (define free-vars (remove-top-level (remove name (free-variables body))))
      (define mapping (freshen-mapping free-vars))
      (define new-body (recur (replace-free-variables mapping body)))
-     (closure-expr name #f (hash-map mapping list) new-body))
+     (match-define (list (list captured fresh) ...)
+       (hash-map mapping list))
+     (create-closure (closure-def name #f fresh new-body) captured))
     ((identifier-expr name) expr)
     ((bind (binding name bound) body)
      (bind (binding name (recur bound)) (recur body)))
@@ -298,11 +312,11 @@
  (define (lift expr)
   (define (recur expr)
    (match expr
-    ((closure-expr name type captured body)
-     (define def (closure-def name type (map second captured) (recur body)))
+    ((create-closure (closure-def name type fresh body) captured)
+     (define def (closure-def name type fresh (recur body)))
      (define new-name (fresh-name 'closure))
      (hash-set! global-functions new-name def)
-     (create-closure new-name (map first captured)))
+     (create-closure new-name captured))
     ((identifier-expr name) expr)
     ((bind (binding name bound) body)
      (bind (binding name (recur bound)) (recur body)))
