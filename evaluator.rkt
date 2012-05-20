@@ -17,11 +17,35 @@
 (struct prim-code-value (function) #:transparent)
 (struct control-code-value (function) #:transparent)
 
-(struct program-state (heap top-env env stack expr) #:transparent)
+(struct program-state (heap env stack expr) #:transparent)
 (struct finished-state (heap val) #:transparent)
 (struct error-state (heap env stack expr error) #:transparent)
 
 (struct stack-frame (name env expr) #:transparent)
+
+(struct environment (top local) #:transparent)
+
+(define (env-initial top)
+  (environment top top))
+
+(define (env-lookup env name)
+  (hash-ref (environment-local env) name))
+(define (env-lookup-many env names)
+  (for/list ((name names)) (env-lookup env name)))
+
+(define (env-add env name val)
+ (match env
+  ((environment top local)
+   (environment top (hash-set local name val)))))
+
+(define (env-add-many env names vals)
+ (for/fold ((env env)) ((name names) (v vals))
+  (env-add env name v)))
+
+(define (env-new env new-local)
+ (match env
+  ((environment top local)
+   (environment top (hash-union top new-local)))))
 
 
 (define fresh-location
@@ -30,118 +54,125 @@
    (begin0 (location next-location)
            (set! next-location (add1 next-location))))))
 
+
+(define (bind val name body heap env stack)
+ (program-state heap (env-add env name val) stack body))
+
+(define (bind-value value name body heap env stack)
+ (define loc (fresh-location))
+ (define new-heap (hash-set heap loc value))
+ (bind (indirect-val loc) name body new-heap env stack))
+
+(define (return val heap stack)
+ (match stack
+  ((cons (stack-frame name env body) stack)
+   (program-state heap (env-add env name val) stack body))))
+
+(define (return-value value heap stack)
+ (define loc (fresh-location))
+ (define new-heap (hash-set heap loc value))
+ (return (indirect-val loc) new-heap stack))
+
+
+(define (bind/return val name body heap env stack)
+  (if name
+    (bind val name body heap env stack)
+    (return val heap stack)))
+
+
 (define (step state)
  (match state
-  ((program-state heap top-env env stack expr)
-   (match* (stack expr)
-    ((stack (pack-expr _ _ value))
-     (program-state heap top-env env stack value))
-    (((list (stack-frame new-name new-env expr) stack-rest ...)
-      (identifier-expr name))
-     (let ((v (hash-ref env name)))
-       (program-state heap top-env (hash-set new-env new-name v) stack-rest expr)))
-    ((stack (unpack-expr _ name value body))
-     (program-state heap top-env env stack (bind-expr name value body)))
-    ((stack (app-expr (identifier-expr fun-name) _
-                      (list (identifier-expr arg-names) ...)))
-     (define args (map (lambda (name) (hash-ref env name)) arg-names))
-     (match (hash-ref heap (indirect-val-location (hash-ref env fun-name)))
+  ((program-state heap env stack expr)
+   (define (heap-lookup name)
+     (hash-ref heap (indirect-val-location (env-lookup env name))))
+   (match expr
+    ;Handle Packing and Unpacking
+    ((pack-expr _ _ value)
+     (program-state heap env stack value))
+    ((unpack-expr _ name value body)
+     (program-state heap env stack (bind-expr name value body)))
+
+    ;Handle calls and tail calls
+    ((app-expr (identifier-expr fun-name) _
+               (list (identifier-expr arg-names) ...))
+     (define args (env-lookup-many env arg-names))
+     (match (heap-lookup fun-name)
       ((code-value new-args body)
-       (program-state heap top-env
-                      (hash-union top-env
-                                  (make-immutable-hash (map cons new-args args)))
+       (program-state heap
+                      (env-new env (make-immutable-hash (map cons new-args args)))
                       stack body))
       ((prim-code-value fun)
        (match stack
         ((list (stack-frame new-name new-env expr) stack-rest ...)
          (define-values (new-heap new-val) (fun heap args))
-         (program-state new-heap top-env
-                        (hash-set new-env new-name new-val)
+         (program-state new-heap
+                        (env-add new-env new-name new-val)
                         stack-rest expr))))
       ((control-code-value fun)
        (fun heap env stack args))))
-    ((stack (bind-expr return-name
-                       (app-expr (identifier-expr fun-name) _
-                        (list (identifier-expr arg-names) ...))
-                       body))
-     (define args (map (lambda (name) (hash-ref env name)) arg-names))
-     (match (hash-ref heap (indirect-val-location (hash-ref env fun-name)))
+    ((bind-expr return-name
+                (app-expr (identifier-expr fun-name) _
+                 (list (identifier-expr arg-names) ...))
+                body)
+     (define args (env-lookup-many env arg-names))
+     (match (heap-lookup fun-name) 
       ((code-value new-args code-body)
-       (program-state heap top-env
-                      (hash-union (make-immutable-hash (map cons new-args args))
-                                  top-env)
+       (program-state heap
+                      (env-new env (make-immutable-hash (map cons new-args args)))
                       (cons (stack-frame return-name env body) stack) code-body))
       ((prim-code-value fun)
         (define-values (new-heap new-val) (fun heap args))
-        (program-state new-heap top-env
-                       (hash-set env return-name new-val)
+        (program-state new-heap
+                       (env-add env return-name new-val)
                        stack body))
       ((control-code-value fun)
        (fun heap env (cons (stack-frame return-name env body) stack) args))))
-    ((stack (bind-expr name (identifier-expr old-name) body))
-     (program-state heap top-env
-                    (hash-set env name (hash-ref env old-name))
-                    stack body))
-    ((stack (bind-expr name (tuple-proj-expr index (identifier-expr old-name)) body))
-     (define tuple (hash-ref heap (indirect-val-location (hash-ref env old-name))))
-     (program-state heap top-env
-                    (hash-set env name
-                      (list-ref (tuple-value-fields tuple) index))
-                    stack body))
 
-    ;Handle Tuple return and Tuple bind
-    ((stack (tuple-expr (list (identifier-expr names) ...)))
-     (define values (for/list ((name names)) (hash-ref env name)))
-     (define loc (fresh-location))
-     (define new-heap (hash-set heap loc (tuple-value values)))
-     (match stack
-      ((list (stack-frame name env body) stack-rest ...)
-       (program-state new-heap top-env
-                      (hash-set env name (indirect-val loc))
-                      stack-rest body))))
-    ((stack (bind-expr name (tuple-expr (list (identifier-expr names) ...)) body))
-     (define values (for/list ((name names)) (hash-ref env name)))
-     (define loc (fresh-location))
-     (define new-heap (hash-set heap loc (tuple-value values)))
-     (program-state new-heap top-env
-                    (hash-set env name (indirect-val loc)) stack body))
+    ;Handle Identifier return and bind
+    ((identifier-expr name)
+     (return (env-lookup env name) heap stack))
+    ((bind-expr name (identifier-expr old-name) body)
+     (bind (env-lookup env old-name) name body heap env stack))
 
-    ;Handle Constructor return and Constructor bind
-    ((stack (constructor-expr variant (list (identifier-expr names) ...)))
-     (define values (for/list ((name names)) (hash-ref env name)))
-     (define loc (fresh-location))
-     (define new-heap (hash-set heap loc (constructor-value variant values)))
-     (match stack
-      ((list (stack-frame name env body) stack-rest ...)
-       (program-state new-heap top-env
-                      (hash-set env name (indirect-val loc))
-                      stack-rest body))))
-    ((stack (bind-expr name
-              (constructor-expr variant (list (identifier-expr names) ...)) body))
-     (define values (for/list ((name names)) (hash-ref env name)))
-     (define loc (fresh-location))
-     (define new-heap (hash-set heap loc (constructor-value variant values)))
-     (program-state new-heap top-env
-                    (hash-set env name (indirect-val loc)) stack body))
+    ;Handle Tuple return and bind
+    ((tuple-expr (list (identifier-expr names) ...))
+     (return-value (tuple-value (env-lookup-many env names)) heap stack))
+    ((bind-expr name (tuple-expr (list (identifier-expr names) ...)) body)
+     (bind-value (tuple-value (env-lookup-many env names)) name body heap env stack))
+
+    ;Handle Tuple-Proj return and bind
+    ((tuple-proj-expr index (identifier-expr old-name))
+     (return (list-ref (tuple-value-fields (heap-lookup old-name)) index)
+             heap stack))
+    ((bind-expr name (tuple-proj-expr index (identifier-expr old-name)) body)
+     (bind (list-ref (tuple-value-fields (heap-lookup old-name)) index)
+           name body heap env stack))
+
+
+    ;Handle Constructor return and bind
+    ((constructor-expr variant (list (identifier-expr names) ...))
+     (return-value (constructor-value variant (env-lookup-many env names))
+                   heap stack))
+    ((bind-expr name
+       (constructor-expr variant (list (identifier-expr names) ...)) body)
+     (bind-value (constructor-value variant (env-lookup-many env names))
+                 name body heap env stack))
 
     ;Handle Case expr
-    ((stack (case-expr (identifier-expr value-name)
-                       (list (case-clause patterns bodies) ...)))
-     (define value (hash-ref heap (indirect-val-location (hash-ref env value-name))))
+    ((case-expr (identifier-expr value-name)
+                       (list (case-clause patterns bodies) ...))
+     (define value (heap-lookup value-name))
      (for/or ((pattern patterns) (body bodies))
       (match pattern
-       ((nobind-pattern) (program-state heap top-env env stack body))
+       ((nobind-pattern) (program-state heap env stack body))
        ((identifier-pattern new-name)
-        (program-state heap top-env
-                       (hash-set env new-name (hash-ref env value-name))
-                       stack body))
+        (bind (env-lookup env value-name) new-name body heap env stack))
        ((constructor-pattern variant (list (identifier-pattern names) ...))
         (and (equal? variant (constructor-value-variant value))
-             (let ((new-env (for/fold ((env env))
-                                      ((name names)
-                                       (v (constructor-value-fields value)))
-                             (hash-set env name v))))
-               (program-state heap top-env new-env stack body)))))))))))
+               (program-state heap
+                              (env-add-many env names
+                                            (constructor-value-fields value))
+                              stack body))))))))))
 
 (define (run state)
   (let loop ((state state))
@@ -175,7 +206,7 @@
 
  (define stop-stack-frame
    (let ((value-name (fresh-name 'final)))
-   (stack-frame value-name (hash stop-name (indirect-val stop-loc))
+   (stack-frame value-name (env-initial (hash stop-name (indirect-val stop-loc)))
         (app-expr (identifier-expr stop-name) #f
                   (list (identifier-expr value-name))))))
 
@@ -233,7 +264,7 @@
  
    (define frozen-heap (make-immutable-hash (hash-map initial-heap cons)))
  
-   (program-state frozen-heap frozen-env frozen-env initial-stack expr))))
+   (program-state frozen-heap (env-initial frozen-env) initial-stack expr))))
 
 
      
