@@ -10,7 +10,7 @@
         ty-fun? val-constant?  val-identifier? case?) x))
 
 (define (type? x)
-  ((or/c ty-constant? ty-identifier? val-fun-ty? ty-fun-ty?) x))
+  ((or/c absract-data-ty? ty-identifier? val-fun-ty? ty-fun-ty?) x))
 
 (define (kind? x) ((or/c kind-arr? type-kind?) x))
 
@@ -28,9 +28,9 @@
 (define-struct/contract data-type ((arg-kinds (listof kind?))))
 (define-struct/contract data-variant
  ((parent unique?)
-  (arg-kind-names (listof unique?))
-  (variant-kinds (listof (list/c unique? kind?)))
-  (variant-types (listof type?))))
+  (arg-names (listof unique?))
+  (variant-type-kinds (listof (list/c unique? kind?)))
+  (variant-value-types (listof type?))))
 
 (define-struct/contract pattern
   ((variant-name? unique?)
@@ -40,7 +40,9 @@
 (struct type-kind ())
 (define-struct/contract kind-arr ((arg kind?) (result kind?)))
 
-(define-struct/contract ty-constant ((data any/c)))
+;(defien-struct/contract existential
+(define-struct/contract abstract-data-ty
+ ((name unique?) (parameters (listof type?))))
 (define-struct/contract ty-function ((name unique?)))
 (define-struct/contract ty-identifier ((name unique?)))
 (define-struct/contract val-fun-ty ((arg type?) (result type?)))

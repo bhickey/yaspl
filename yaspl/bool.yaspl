@@ -1,0 +1,39 @@
+(module bool
+ (data bool ()
+  (True)
+  (False))
+
+ (define not
+  (lambda (x)
+   (case x
+    ((True) False)
+    ((False) True))))
+
+ (define or
+  (lambda (x y)
+    (case x
+     ((True) True)
+     ((False) y))))
+
+ (define and
+  (lambda (x y)
+    (case x
+     ((True) y)
+     ((False) False))))
+
+ (define xor
+  (lambda (x y)
+    (case x
+     ((True) (not y))
+     ((False) y))))
+     
+ (define main
+  (lambda (unused)
+    (xor (or (not True)
+             (and True False))
+         (xor True True)))))
+
+     
+
+
+

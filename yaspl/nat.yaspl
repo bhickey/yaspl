@@ -1,0 +1,33 @@
+(module nat
+ (data nat ()
+  (zero)
+  (suc nat))
+ 
+
+ (define plus
+  (lambda (x y)
+   (case x
+    ((zero) y)
+    ((suc x) (suc (plus x y))))))
+
+
+ (define minus
+  (lambda (x y)
+   (case y
+    ((zero) x)
+    ((suc y) 
+     (case x
+      ((zero) zero)
+      ((suc x) (minus x y)))))))
+
+ (define mult
+  (lambda (x y)
+   (case x
+    ((zero) zero)
+    ((suc x) (plus y (mult x y))))))
+
+  (define main
+   (lambda (unused)
+    (plus (suc zero) 
+     (mult (suc (suc (suc (suc zero)))) (suc zero))))))
+  

@@ -44,5 +44,27 @@
     ((ty-fun name type body) (error 'not-implemented))
     ((val-constant type data) type)
     ((val-identifier name) (env-lookup env name))
-    ((case expr patterns) (error 'not-implemented))))
+    ((case expr patterns)
+     (let ((expr-type (type-check expr env)))
+       (match (resolve-type type env)
+        ((abstact-data-ty adt-name params)
+         (let ((res-types
+                (for/list ((pattern patterns))
+                 (match pattern
+                  ((pattern variant-name type-names value-names)
+                   (match (env-lookup variant-name)
+                    ((data-variant parent param-names ((list _ _) ...)
+                                   variant-types)
+                     (unless (equal? parent adt-name)
+                       (error 'type-check "Pattern doesn't match type"))
+                     ;(assert-type= (env-lookup parent
+
+       
+
+     (let ((type (resolve-type type env)))
+       (match type
+        ((ty-constant (data-type
+     (
+     
+     (error 'not-implemented))))
 
