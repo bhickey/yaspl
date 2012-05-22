@@ -1,4 +1,13 @@
 (module bool
+ (export-data bool)
+ (export not)
+ (export or)
+ (export and)
+ (export xor)
+ (export main)
+ (export True)
+ (export False)
+
  (data bool ()
   (True)
   (False))

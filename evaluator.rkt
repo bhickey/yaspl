@@ -1,5 +1,6 @@
 #lang racket
 
+(require "names.rkt")
 (require "lifted-anf-ast.rkt")
 (require unstable/hash)
 (require racket/pretty)
@@ -12,7 +13,7 @@
 (struct direct-val (value) #:transparent) ;Unused currently (for int32 and floats)
 
 (struct tuple-value (fields) #:transparent)
-(struct constructor-value (variant fields) #:transparent)
+(struct constructor-value (tag fields) #:transparent)
 (struct code-value (args body) #:transparent)
 (struct prim-code-value (function) #:transparent)
 (struct control-code-value (function) #:transparent)
@@ -23,20 +24,24 @@
 
 (struct stack-frame (name env expr) #:transparent)
 
-(struct environment (top local) #:transparent)
+(struct environment (global top local) #:transparent)
 
-(define (env-initial top)
-  (environment top top))
+(define (env-initial global top local)
+  (environment global top local))
 
 (define (env-lookup env name)
-  (hash-ref (environment-local env) name))
+  (hash-ref
+    (if (module-name? name)
+        (environment-global env)
+        (environment-local env)) name))
+
 (define (env-lookup-many env names)
   (for/list ((name names)) (env-lookup env name)))
 
 (define (env-add env name val)
  (match env
-  ((environment top local)
-   (environment top (hash-set local name val)))))
+  ((environment global top local)
+   (environment global top (hash-set local name val)))))
 
 (define (env-add-many env names vals)
  (for/fold ((env env)) ((name names) (v vals))
@@ -44,8 +49,9 @@
 
 (define (env-new env new-local)
  (match env
-  ((environment top local)
-   (environment top (hash-union top new-local)))))
+  ((environment global top local)
+   (environment global top (hash-union top new-local)))))
+
 
 
 (define fresh-location
@@ -162,17 +168,18 @@
     ((case-expr (identifier-expr value-name)
                        (list (case-clause patterns bodies) ...))
      (define value (heap-lookup value-name))
-     (for/or ((pattern patterns) (body bodies))
-      (match pattern
-       ((nobind-pattern) (program-state heap env stack body))
-       ((identifier-pattern new-name)
-        (bind (env-lookup env value-name) new-name body heap env stack))
-       ((constructor-pattern variant (list (identifier-pattern names) ...))
-        (and (equal? variant (constructor-value-variant value))
-               (program-state heap
-                              (env-add-many env names
-                                            (constructor-value-fields value))
-                              stack body))))))))))
+     (or (for/or ((pattern patterns) (body bodies))
+          (match pattern
+           ((nobind-pattern) (program-state heap env stack body))
+           ((identifier-pattern new-name)
+            (bind (env-lookup env value-name) new-name body heap env stack))
+           ((constructor-pattern pattern tag (list (identifier-pattern names) ...))
+            (and (equal? tag (constructor-value-tag value))
+                   (program-state heap
+                                  (env-add-many env names
+                                                (constructor-value-fields value))
+                                  stack body)))))
+         (error 'step "No case statement matched in ~a" expr)))))))
 
 (define (run state)
   (let loop ((state state))
@@ -195,7 +202,9 @@
      (finished-state heap (first args)))
    (control-code-value stop)))
 
-(define (initial-state prog expr)
+
+
+(define (initial-state prog)
  (define initial-heap (make-hash))
  (define initial-env (make-hash))
 
@@ -204,19 +213,43 @@
  (define stop-name (fresh-name 'stop))
 
 
- (define stop-stack-frame
-   (let ((value-name (fresh-name 'final)))
-   (stack-frame value-name (env-initial (hash stop-name (indirect-val stop-loc)))
+ (define (call-main mod-name (main-name 'main))
+  (let ()
+   (define closure-pair (fresh-name 'closure-pair))
+   (define null-tuple (fresh-name 'null-tuple))
+   (define function (fresh-name 'function))
+   (define environment (fresh-name 'environment))
+   (define value-name (fresh-name 'final))
+
+   (define main (module-name mod-name main-name))
+
+   (unpack-expr #f closure-pair (identifier-expr main)
+    (bind-expr function (tuple-proj-expr 0 (identifier-expr closure-pair))
+     (bind-expr environment (tuple-proj-expr 1 (identifier-expr closure-pair))
+      (bind-expr null-tuple (tuple-expr empty)
+       (bind-expr value-name
+                  (app-expr (identifier-expr function) #f
+                            (list (identifier-expr environment)
+                                  (identifier-expr null-tuple)))
         (app-expr (identifier-expr stop-name) #f
-                  (list (identifier-expr value-name))))))
-
- (define initial-stack (list stop-stack-frame))
+                  (list (identifier-expr value-name))))))))))
 
 
 
+ (define initial-stack empty)
+ (define initial-main-env (hash stop-name (indirect-val stop-loc)))
 
- (match prog
-  ((program datadefs tops funs)
+ (match-define (program modules main-module) prog)
+ (unless (equal? 1 (hash-count modules))
+   (error 'inital-state "Only supports one module"))
+
+ (define initial-global-env (make-hash))
+ (match-define (list mod-name mod)
+   (for/first (((mod-name mod) modules))
+     (list mod-name mod)))
+
+ (match mod
+  ((module exports datadefs tops funs)
 
    (define (convert-fun func)
     (match func
@@ -259,12 +292,24 @@
     (define loc (indirect-val-location (hash-ref initial-env name)))
     ((simple-eval frozen-env) expr loc))
 
-   
+   (for ((export exports))
+    (match export
+     ((value-export name internal-name type)
+      (hash-set! initial-global-env
+                 (module-name mod-name name)
+                 (hash-ref frozen-env internal-name)))
+     (else (void))))
 
  
    (define frozen-heap (make-immutable-hash (hash-map initial-heap cons)))
+   (define frozen-global-env
+     (make-immutable-hash (hash-map initial-global-env cons)))
  
-   (program-state frozen-heap (env-initial frozen-env) initial-stack expr))))
+   (program-state
+     frozen-heap
+     (env-initial frozen-global-env frozen-env initial-main-env)
+     initial-stack
+     (call-main main-module)))))
 
 
      

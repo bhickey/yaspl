@@ -1,0 +1,7 @@
+(module bool2
+ (import bool)
+
+ (define main
+  (lambda (unused)
+   (or False True))))
+  

@@ -1,4 +1,11 @@
 (module nat
+ (export main)
+ (export plus)
+ (export minus)
+ (export mult)
+ (export suc)
+ (export zero)
+
  (data nat ()
   (zero)
   (suc nat))

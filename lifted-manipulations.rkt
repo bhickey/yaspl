@@ -2,6 +2,7 @@
 
 
 (require "lifted-anf-ast.rkt")
+(require "names.rkt")
 (require (prefix-in inter: "intermediate-ast.rkt"))
 (provide convert)
 
@@ -43,24 +44,20 @@
     (cond
       ((false? type) #f)
       (else (error 'nyi))))
+
   (define (convert-case-clause clause)
    (match clause
     ((inter:case-clause pattern body)
-     (case-clause (convert-pattern pattern) (convert-expr body)))))
-  (define (convert-pattern pattern)
-   (match pattern
-    ((inter:nobind-pattern) (nobind-pattern))
-    ((inter:identifier-pattern name) (identifier-pattern name))
-    ((inter:constructor-pattern variant fields)
-     (constructor-pattern variant (map convert-pattern fields))))) 
+     (case-clause pattern (convert-expr body)))))
+
   (define (convert-data-def def)
     (match def
      ((inter:datatype-definition name args variants)
       (datatype-definition name args (map convert-variant-def variants)))))
   (define (convert-variant-def def)
     (match def
-     ((inter:variant-definition name fields)
-      (variant-definition name (map identifier-type fields)))))
+     ((inter:variant-definition tag pattern cons fields)
+      (variant-definition tag pattern cons (map identifier-type fields)))))
 
   (define (extract-environment environment args expr)
     (for/fold ((expr expr)) ((index (in-naturals)) (arg args))
@@ -69,9 +66,11 @@
 
 
 
+
   (match inter-lifted-module
    ((inter:lifted-module imports exports data-defs top-defs functions)
-    (program
+    (module
+      exports
       (map convert-data-def data-defs)
       (for/hash (((name expr) top-defs))
        (values name (convert-expr expr)))
