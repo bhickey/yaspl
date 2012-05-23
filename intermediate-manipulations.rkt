@@ -4,9 +4,11 @@
 (require "names.rkt")
 (require racket/pretty)
 (require unstable/hash)
-(provide convert-module)
+(provide convert-module module->signature)
 
 
+(define (module->signature mod)
+ (module-signature (module-exports mod)))
 
 
 (define (convert-module module signatures)
@@ -47,8 +49,18 @@
  (match mod
   ((module id imports exports forms)
    (define new-defs
-    (for/list ((import imports)) (error 'nyi)))
-   (module id imports exports (append new-defs forms)))))
+    (for/list ((import imports))
+     (match import
+      ((module-import mod-name)
+       (match (hash-ref signatures mod-name)
+        ((module-signature exports)
+         (filter identity
+          (for/list ((export exports))
+           (match export
+            ((value-export ext-name _ _)
+             (variable-declaration (module-name mod-name ext-name) #f))
+            (else #f))))))))))
+   (module id imports exports (append* forms new-defs)))))
 
 (define (add-constructors mod)
  (match mod
@@ -73,12 +85,18 @@
  (match mod
   ((module id imports exports forms)
    (define top-level (make-hash))
-   (for ((def forms))
+   (for* ((pass (list 'imports 'internal))
+          (def forms))
     (match def
      ((variable-definition (source-name name) _)
-      (hash-set! top-level (source-name name) (module-name id name)))
+      (when (equal? pass 'internal)
+       (hash-set! top-level (source-name name) (fresh-top-name name))))
+     ((variable-declaration (and mod-name (module-name mod name)) _)
+      (when (equal? pass 'imports)
+       (hash-set! top-level (source-name name) mod-name)))
      ((datatype-definition name args variants)
       (void))))
+
    (define frozen-top-level (make-immutable-hash (hash-map top-level cons)))
 
 
@@ -125,6 +143,8 @@
       ((variable-definition name body)
        (variable-definition (hash-ref frozen-top-level name)
                             (uniquify-expr body frozen-top-level)))
+      ((variable-declaration (module-name mod name) type)
+       def)
       ((datatype-definition name args variants)
        (datatype-definition name args
         (for/list ((variant variants))
@@ -354,7 +374,7 @@
 (define ((close top-level) expr)
 
   (define (remove-top-level free)
-    (filter (lambda (name) (not (member name top-level))) free))
+    (filter local-name? free))
 
   (define (recur expr)
    (match expr
@@ -389,7 +409,7 @@
    (match expr
     ((create-closure (closure-def name type fresh body) captured)
      (define def (closure-def name type fresh (recur body)))
-     (define new-name (fresh-name 'closure))
+     (define new-name (fresh-top-name 'closure))
      (hash-set! global-functions new-name def)
      (create-closure new-name captured))
     ((identifier-expr name) expr)

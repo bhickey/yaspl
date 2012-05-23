@@ -24,24 +24,27 @@
 
 (struct stack-frame (name env expr) #:transparent)
 
-(struct environment (global top local) #:transparent)
+(struct environment (global local) #:transparent)
 
-(define (env-initial global top local)
-  (environment global top local))
+(define (env-initial global local)
+  (environment global local))
 
 (define (env-lookup env name)
-  (hash-ref
-    (if (module-name? name)
-        (environment-global env)
-        (environment-local env)) name))
+ (hash-ref
+  (cond
+   ((module-name? name) (environment-global env))
+   ((top-local-name? name) (environment-global env))
+   ((local-name? name) (environment-local env)))
+  name))
+
 
 (define (env-lookup-many env names)
   (for/list ((name names)) (env-lookup env name)))
 
 (define (env-add env name val)
  (match env
-  ((environment global top local)
-   (environment global top (hash-set local name val)))))
+  ((environment global local)
+   (environment global (hash-set local name val)))))
 
 (define (env-add-many env names vals)
  (for/fold ((env env)) ((name names) (v vals))
@@ -49,8 +52,8 @@
 
 (define (env-new env new-local)
  (match env
-  ((environment global top local)
-   (environment global top (hash-union top new-local)))))
+  ((environment global local)
+   (environment global new-local))))
 
 
 
@@ -206,7 +209,7 @@
 
 (define (initial-state prog)
  (define initial-heap (make-hash))
- (define initial-env (make-hash))
+ (define initial-global-env (make-hash))
 
  (define stop-loc (fresh-location))
  (hash-set! initial-heap stop-loc stop-code)
@@ -240,76 +243,79 @@
  (define initial-main-env (hash stop-name (indirect-val stop-loc)))
 
  (match-define (program modules main-module) prog)
- (unless (equal? 1 (hash-count modules))
-   (error 'inital-state "Only supports one module"))
 
- (define initial-global-env (make-hash))
- (match-define (list mod-name mod)
-   (for/first (((mod-name mod) modules))
-     (list mod-name mod)))
-
- (match mod
-  ((module exports datadefs tops funs)
-
-   (define (convert-fun func)
-    (match func
-     ((function (list (argument args _) ...) _ body)
-      (code-value args body))))
-   (for (((name fun) funs))
-    (define loc (fresh-location))
-    (hash-set! initial-heap loc (convert-fun fun))
-    (hash-set! initial-env name (indirect-val loc)))
-
-
-
-   (define ((simple-eval env) expr (loc #f))
-    (match expr
-     ((pack-expr _ _ expr)
-      ((simple-eval env) expr loc))
-     ((identifier-expr name)
-      (when loc
-        (error 'simple-eval "Trying to evaluate an identifier into a location"))
-      (hash-ref env name))
-     ((bind-expr name bound body)
-      (define bound-val ((simple-eval env) bound))
-      ((simple-eval (hash-set env name bound-val)) body loc))
-     ((tuple-expr values)
-      (define real-loc (or loc (fresh-location)))
-      (define value (tuple-value (map (simple-eval env) values)))
-      (hash-set! initial-heap real-loc value)
-      (indirect-val real-loc))
-     ((constructor-expr variant values)
-      (define real-loc (or loc (fresh-location)))
-      (define value (constructor-value variant (map (simple-eval env) values)))
-      (hash-set! initial-heap real-loc value)
-      (indirect-val real-loc))))
-
-   (for (((name _) tops))
-    (hash-set! initial-env name (indirect-val (fresh-location))))
-
-   (define frozen-env (make-immutable-hash (hash-map initial-env cons)))
-   (for (((name expr) tops))
-    (define loc (indirect-val-location (hash-ref initial-env name)))
-    ((simple-eval frozen-env) expr loc))
-
-   (for ((export exports))
-    (match export
-     ((value-export name internal-name type)
-      (hash-set! initial-global-env
-                 (module-name mod-name name)
-                 (hash-ref frozen-env internal-name)))
-     (else (void))))
-
+ (for (((mod-name mod) modules))
+  (match mod
+   ((module exports datadefs tops funs)
  
-   (define frozen-heap (make-immutable-hash (hash-map initial-heap cons)))
-   (define frozen-global-env
-     (make-immutable-hash (hash-map initial-global-env cons)))
+    (define (convert-fun func)
+     (match func
+      ((function (list (argument args _) ...) _ body)
+       (code-value args body))))
+
+    (for (((name fun) funs))
+     (define loc (fresh-location))
+     (hash-set! initial-heap loc (convert-fun fun))
+     (hash-set! initial-global-env name (indirect-val loc)))
  
-   (program-state
-     frozen-heap
-     (env-initial frozen-global-env frozen-env initial-main-env)
-     initial-stack
-     (call-main main-module)))))
+    (for (((name _) tops))
+     (define loc (fresh-location))
+     (hash-set! initial-global-env name (indirect-val loc)))
+ 
+ 
+    (for ((export exports))
+     (match export
+      ((value-export name internal-name type)
+       (hash-set! initial-global-env
+                  (module-name mod-name name)
+                  (hash-ref initial-global-env internal-name)))
+      (else (void)))))))
+
+ (define frozen-env (make-immutable-hash (hash-map initial-global-env cons)))
+
+ (for (((mod-name mod) modules))
+  (match mod
+   ((module exports datadefs tops funs)
+  
+ 
+    (define ((simple-eval env) expr (loc #f))
+     (match expr
+      ((pack-expr _ _ expr)
+       ((simple-eval env) expr loc))
+      ((identifier-expr name)
+       (when loc
+         (error 'simple-eval "Trying to evaluate an identifier into a location"))
+       (hash-ref env name))
+      ((bind-expr name bound body)
+       (define bound-val ((simple-eval env) bound))
+       ((simple-eval (hash-set env name bound-val)) body loc))
+      ((tuple-expr values)
+       (define real-loc (or loc (fresh-location)))
+       (define value (tuple-value (map (simple-eval env) values)))
+       (hash-set! initial-heap real-loc value)
+       (indirect-val real-loc))
+      ((constructor-expr variant values)
+       (define real-loc (or loc (fresh-location)))
+       (define value (constructor-value variant (map (simple-eval env) values)))
+       (hash-set! initial-heap real-loc value)
+       (indirect-val real-loc))))
+
+
+
+
+    (for (((name expr) tops))
+     (define loc (indirect-val-location (hash-ref frozen-env name)))
+     ((simple-eval frozen-env) expr loc)))))
+
+
+
+ (define frozen-heap (make-immutable-hash (hash-map initial-heap cons)))
+
+ (program-state
+   frozen-heap
+   (env-initial frozen-env initial-main-env)
+   initial-stack
+   (call-main main-module)))
 
 
      

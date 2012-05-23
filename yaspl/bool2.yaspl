@@ -1,5 +1,6 @@
 (module bool2
  (import bool)
+ (export main)
 
  (define main
   (lambda (unused)
