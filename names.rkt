@@ -1,12 +1,12 @@
-#lang racket
+#lang typed/racket/base
 
 (require "unique.rkt")
 (provide (all-defined-out))
 
-(struct source-name (symbol) #:transparent)
-(struct module-name (module name) #:transparent)
-(struct top-local-name (uniq) #:transparent)
-(struct local-name (uniq) #:transparent)
+(struct: source-name ((symbol : Symbol)) #:transparent)
+(struct: module-name ((module : Symbol) (name : Symbol)) #:transparent)
+(struct: top-local-name ((uniq : unique)) #:transparent)
+(struct: local-name ((uniq : unique)) #:transparent)
 
 (define (fresh-name (hint 'fresh))
  (cond
