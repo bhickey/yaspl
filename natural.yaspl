@@ -1,0 +1,24 @@
+#lang yaspl
+
+;; Natural numbers
+(module natural
+  (import)
+  (export + compare zero successor)
+  
+  (data Natural
+        (Nat Int))
+  
+  (defn zero ()
+    (Nat 0))
+  
+  (defn successor (n)
+    (case n
+      ((Nat n) -> (Nat (inc n)))))
+  
+  (defn compare (x y)
+    (case (x,y)
+      ((Nat n), (Nat m)) -> (compare n m)))
+  
+  (defn + (x y)
+    (case (x,y)
+      ((Nat n), (Nat m)) -> (Nat (+ n m)))))
