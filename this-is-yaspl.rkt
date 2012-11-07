@@ -1,28 +1,37 @@
 #lang racket
 
+;; Syntatic forms
+;; program structures
+(struct module (name import export data functions) #:transparent)
+(struct main (import expression) #:transparent)
+
+;; Top level forms
 (struct import (name) #:transparent)
 (struct export (name) #:transparent)
 (struct data (name variants) #:transparent)
 (struct variant (name fields) #:transparent)
 (struct defn (name expression) #:transparent)
-(struct module (name import export data functions) #:transparent)
-(struct main (import expression) #:transparent)
 
+;; Expressions
 (struct int (val) #:transparent)
 (struct str (val) #:transparent)
+(struct unit () #:transparent)
 (struct id (val) #:transparent)
 (struct lam (arg body) #:transparent)
 (struct application (fn argument) #:transparent)
-(struct unit () #:transparent)
+(struct prim-app (fn args) #:transparent)
 (struct case (expr clause) #:transparent)
 (struct clause (pattern expr) #:transparent)
 
+;; Patterns
 (struct number-pattern (val) #:transparent)
 (struct string-pattern (val) #:transparent)
 (struct identifier-pattern (sym) #:transparent)
 (struct wildcard-pattern () #:transparent)
 (struct constructor-pattern (constructor args) #:transparent)
 
+;; Runtime Structures
+;; Values
 (struct rt-int (val) #:transparent)
 (struct rt-str (val) #:transparent)
 (struct rt-unit () #:transparent)
@@ -93,6 +102,8 @@
     ((str v) (rt-str v))
     ((id v) (dict-ref env v))
     ((lam arg bdy) (rt-closure arg bdy env))
+    ((prim-app fn args)
+     (apply fn (map (compose (curry dict-ref env) id-val) args)))
     ((application fn arg)
      (match (rinterp fn)
        ((rt-closure arg-name bdy senv) (interp bdy (dict-set senv arg-name (rinterp arg))))))
@@ -113,17 +124,20 @@
      (and (equal? constructor tag) (interp expr (foldl dict-set env ids vals))))
     (((identifier-pattern id) _) (interp expr (dict-set env id val)))))
 
-;; (with-input-from-file "color.rkt" read)
-;; (parse-yaspl (with-input-from-file "color.rkt" read))
-;; (interp (hash) (parse-yaspl (with-input-from-file "color.rkt" read)))
+
+(define (simple-interp expr)
+  (match expr
+    ((lam arg body) (rt-closure arg body #f))
+    ((int v) (rt-int v))
+    ((str v) (rt-str v))))
 
 (define (interp-module store mod)
   (match mod
-    ((module name (list (import import-name) ...) (list (export export-name) ...) data defn)
-     (define values (map simple-interp functions))
-     (define env-list (append (map (dict-ref store) import-name)
+    ((module name (list (import import-names) ...) (list (export export-names) ...) data defns)
+     (define values (map (compose simple-interp defn-expression) defns))
+     (define env-list (append (map (curry dict-ref store) import-names)
                               (map data-env data)
-                              (map defn-env defn values)))
+                              (map defn-env defns values)))
      (define full-env
        (for/fold ((env (hash))) ((new-env env-list))
          (for/fold ((env env)) (((key value) new-env))
@@ -131,8 +145,11 @@
      (for ((value values))
        (when (rt-closure? value)
          (set-rt-closure-env! value full-env)))
-     (for/fold ((env (hash))) ((export export-name))
-       (dict-set env export (dict-ref full-env export-name))))))
+     (for/fold ((env (hash))) ((export export-names))
+       (dict-set env export (dict-ref full-env export))))))
+
+(define (interp-imports imports)
+  null)
 
 (define (defn-env defn value)
   (hash (defn-name defn) value))
@@ -143,10 +160,16 @@
      (for/hash ((name names) (fields fieldss))
        (define gensyms (map gensym fields))
        (values name
-               (interp (hash) ((foldr (lambda (acc sym) (lam sym acc))
-                                      (prim-app (prim (lambda args (rt-adt name args))) gensyms)
-                                      gensyms))))))))
+               (interp (hash) (foldr (lambda (acc sym) (lam sym acc))
+                                     (prim-app (lambda args (rt-adt name args)) gensyms)
+                                     gensyms)))))))
 
 (define (interp-program program)
   (match program 
-    ((main imports expression) (interp (interp-module imports) expr))))
+    ((main imports expr) (interp (interp-imports imports) expr))))
+
+
+(define color-module (parse-yaspl (with-input-from-file "color.rkt" read)))
+;; (with-input-from-file "color.rkt" read)
+;; (parse-yaspl (with-input-from-file "color.rkt" read))
+(interp-module (hash) color-module)
