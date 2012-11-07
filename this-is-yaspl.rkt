@@ -8,7 +8,8 @@
 ;; Top level forms
 (struct import (name) #:transparent)
 (struct export (name) #:transparent)
-(struct data (name variants) #:transparent)
+(struct data (name params variants) #:transparent)
+(struct params (parameters) #:transparent)
 (struct variant (name fields) #:transparent)
 (struct defn (name expression) #:transparent)
 
@@ -62,9 +63,15 @@
 
 (define (parse-data-def sexpr)
   (match sexpr
-    ((list 'data id variants ...) (data id (map parse-variant variants)))
+    ((list 'data id params variants ...) (data id
+                                               (map parse-params params)
+                                               (map parse-variant variants)))
     ((list 'defn id (list args ...) body)
      (defn id (foldl (lambda (acc arg) (lam arg acc)) (parse-expr body) args)))))
+
+(define (parse-params sexpr)
+  (match sexpr
+    ((list param-list ...) (params param-list))))
 
 (define (parse-variant sexpr)
   (match sexpr
@@ -156,7 +163,7 @@
 
 (define (data-env a-data)
   (match a-data
-    ((data _ (list (variant names fieldss) ...))
+    ((data _ _ (list (variant names fieldss) ...))
      (for/hash ((name names) (fields fieldss))
        (define gensyms (map gensym fields))
        (values name

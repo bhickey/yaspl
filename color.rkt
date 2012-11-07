@@ -1,7 +1,7 @@
 (module colors
  (import)  ;; (import io)
  (export shift-to-bytes Red Green Blue)
- (data Color
+ (data Color ()
        (Red)
        (Green)
        (Blue)
