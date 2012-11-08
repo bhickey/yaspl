@@ -1,37 +1,8 @@
 #lang racket
 
-(require (planet dyoo/tqueue))
+(require (planet dyoo/tqueue)
+         "source-structures.rkt")
 
-;; Syntatic forms
-;; program structures
-(struct module (name imports exports data functions) #:transparent)
-(struct program (import expression) #:transparent)
-
-;; Top level forms
-(struct import (name) #:transparent)
-(struct export (name) #:transparent)
-(struct data (name params variants) #:transparent)
-(struct params (parameters) #:transparent)
-(struct variant (name fields) #:transparent)
-(struct defn (name expression) #:transparent)
-
-;; Expressions
-(struct int (val) #:transparent)
-(struct str (val) #:transparent)
-(struct unit () #:transparent)
-(struct id (val) #:transparent)
-(struct lam (arg body) #:transparent)
-(struct application (fn argument) #:transparent)
-(struct prim-app (fn args) #:transparent)
-(struct case (expr clause) #:transparent)
-(struct clause (pattern expr) #:transparent)
-
-;; Patterns
-(struct number-pattern (val) #:transparent)
-(struct string-pattern (val) #:transparent)
-(struct identifier-pattern (sym) #:transparent)
-(struct wildcard-pattern () #:transparent)
-(struct constructor-pattern (constructor args) #:transparent)
 
 ;; Runtime Structures
 ;; Values
@@ -44,37 +15,22 @@
 (define (parse-yaspl x)
   (match x
     ((list 'module moduleName 
-           (list 'import import ...)
-           (list 'export export ...)
-           data-functions ...)
-     (define parsed-data-defs (map parse-data-def data-functions))
-     (module moduleName (map parse-import import) (map parse-export export) 
-       (filter data? parsed-data-defs)
-       (filter defn? parsed-data-defs)))
-    ((list 'program (list 'import imports ...) expr)
-     (program (map parse-import imports) (parse-expr expr)))))
-
-(define (parse-import sexpr)
-  (if (symbol? sexpr)
-      (import sexpr)
-      (error 'parse-import "Expected symbol")))
-
-(define (parse-export sexpr)
-  (if (symbol? sexpr)
-      (export sexpr)
-      (error 'parse-export "Expected symbol")))
+           (list 'import (? symbol? imports) ...)
+           (list 'export (? symbol? exports) ...)
+           data-defns ...)
+     (define parsed-data-defns (map parse-data-def data-defns))
+     (module moduleName (map import imports) (map export exports)
+       (filter data? parsed-data-defns)
+       (filter defn? parsed-data-defns)))
+    ((list 'program (list 'import (? symbol? imports) ...) expr)
+     (program (map import imports) (parse-expr expr)))))
 
 (define (parse-data-def sexpr)
   (match sexpr
-    ((list 'data id params variants ...) (data id
-                                               (map parse-params params)
-                                               (map parse-variant variants)))
+    ((list 'data id (list (? symbol? params) ...) variants ...)
+     (data id params (map parse-variant variants)))
     ((list 'defn id (list args ...) body)
      (defn id (foldl lam (parse-expr body) args)))))
-
-(define (parse-params sexpr)
-  (match sexpr
-    ((list param-list ...) (params param-list))))
 
 (define (parse-variant sexpr)
   (match sexpr
@@ -145,7 +101,7 @@
 (define (module-env store mod)
   (match mod
     ((module name imports (list (export export-names) ...) data defns)
-     (define values (map (compose simple-interp defn-expression) defns))
+     (define values (map (compose simple-interp defn-expr) defns))
      (define env-list (cons (import-env store imports)
                             (append
                               (map data-env data)
