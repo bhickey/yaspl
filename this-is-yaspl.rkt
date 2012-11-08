@@ -1,9 +1,11 @@
 #lang racket
 
+(require (planet dyoo/tqueue))
+
 ;; Syntatic forms
 ;; program structures
-(struct module (name import export data functions) #:transparent)
-(struct main (import expression) #:transparent)
+(struct module (name imports exports data functions) #:transparent)
+(struct program (import expression) #:transparent)
 
 ;; Top level forms
 (struct import (name) #:transparent)
@@ -49,7 +51,8 @@
      (module moduleName (map parse-import import) (map parse-export export) 
        (filter data? parsed-data-defs)
        (filter defn? parsed-data-defs)))
-    ((list 'main (list import ...) (list expr ...)) '???)))
+    ((list 'program (list 'import imports ...) expr)
+     (program (map parse-import imports) (parse-expr expr)))))
 
 (define (parse-import sexpr)
   (if (symbol? sexpr)
@@ -67,7 +70,7 @@
                                                (map parse-params params)
                                                (map parse-variant variants)))
     ((list 'defn id (list args ...) body)
-     (defn id (foldl (lambda (acc arg) (lam arg acc)) (parse-expr body) args)))))
+     (defn id (foldl lam (parse-expr body) args)))))
 
 (define (parse-params sexpr)
   (match sexpr
@@ -83,11 +86,11 @@
     ((? string? sexpr) (str sexpr))
     ((? symbol? sexpr) (id sexpr))
     ((list 'lambda (list (? symbol? args) ...) body)
-     (foldl (lambda (acc arg) (lam arg acc)) (parse-expr body) args))
-    ((list 'case expr a-clause ...) (case expr (map parse-clause a-clause)))
+     (foldl lam (parse-expr body) args))
+    ((list 'case expr a-clause ...) (case (parse-expr expr) (map parse-clause a-clause)))
     ((list fn) (application fn unit))
     ((list fn args ...) 
-     (foldr (lambda (acc arg) (application acc arg)) (parse-expr fn) (map parse-expr args)))))
+     (foldr (lambda (arg acc) (application acc arg)) (parse-expr fn) (map parse-expr args)))))
 
 (define (parse-clause sexpr)
   (match sexpr
@@ -113,7 +116,7 @@
      (apply fn (map (compose (curry dict-ref env) id-val) args)))
     ((application fn arg)
      (match (rinterp fn)
-       ((rt-closure arg-name bdy senv) (interp bdy (dict-set senv arg-name (rinterp arg))))))
+       ((rt-closure arg-name body senv) (interp (dict-set senv arg-name (rinterp arg)) body))))
     ((unit) (rt-unit))
     ((case expr clauses)
      (define val (rinterp expr))
@@ -122,14 +125,15 @@
 (define (interp-clause clause val env)
   (define expr (clause-expr clause))
   (match* ((clause-pattern clause) val)
-    (((wildcard-pattern) _) (interp expr env))
+    (((wildcard-pattern) _) (interp env expr))
     (((number-pattern v) (rt-int val))
-     (and (equal? v val) (interp expr env)))
+     (and (equal? v val) (interp env expr)))
     (((string-pattern v) (rt-str val))
-     (and (equal? v val) (interp expr env)))
+     (and (equal? v val) (interp env expr)))
     (((constructor-pattern constructor (list (identifier-pattern ids) ...)) (rt-adt tag vals))
-     (and (equal? constructor tag) (interp expr (foldl dict-set env ids vals))))
-    (((identifier-pattern id) _) (interp expr (dict-set env id val)))))
+     (and (equal? constructor tag) (interp (foldl (lambda (id val env) (dict-set env id val))
+                                                  env ids vals) expr)))
+    (((identifier-pattern id) _) (interp (dict-set env id val) expr))))
 
 
 (define (simple-interp expr)
@@ -138,28 +142,32 @@
     ((int v) (rt-int v))
     ((str v) (rt-str v))))
 
-(define (interp-module store mod)
+(define (module-env store mod)
   (match mod
-    ((module name (list (import import-names) ...) (list (export export-names) ...) data defns)
+    ((module name imports (list (export export-names) ...) data defns)
      (define values (map (compose simple-interp defn-expression) defns))
-     (define env-list (append (map (curry dict-ref store) import-names)
+     (define env-list (cons (import-env store imports)
+                            (append
                               (map data-env data)
-                              (map defn-env defns values)))
-     (define full-env
-       (for/fold ((env (hash))) ((new-env env-list))
-         (for/fold ((env env)) (((key value) new-env))
-           (dict-set env key value))))
+                              (map defn-env defns values))))
+     (define full-env (env-union env-list))
      (for ((value values))
        (when (rt-closure? value)
          (set-rt-closure-env! value full-env)))
      (for/fold ((env (hash))) ((export export-names))
        (dict-set env export (dict-ref full-env export))))))
 
-(define (interp-imports imports)
-  null)
+(define (import-env store imports)
+  (env-union (map (compose (curry dict-ref store) import-name)
+                  imports)))
 
 (define (defn-env defn value)
   (hash (defn-name defn) value))
+
+(define (env-union envs)
+  (for/fold ((env (hash))) ((new-env envs))
+    (for/fold ((env env)) (((key value) new-env))
+      (dict-set env key value))))
 
 (define (data-env a-data)
   (match a-data
@@ -167,16 +175,47 @@
      (for/hash ((name names) (fields fieldss))
        (define gensyms (map gensym fields))
        (values name
-               (interp (hash) (foldr (lambda (acc sym) (lam sym acc))
+               (interp (hash) (foldr lam
                                      (prim-app (lambda args (rt-adt name args)) gensyms)
                                      gensyms)))))))
 
-(define (interp-program program)
-  (match program 
-    ((main imports expr) (interp (interp-imports imports) expr))))
+(define (interp-program module-store prog)
+  (match prog
+    ((program imports expr) (interp (import-env module-store imports) expr))))
+
+(define (linearize-modules modules)
+  (define module-map
+    (for/hash ((module modules))
+      (values (module-name module) module)))
+  (define queue (new-tqueue))
+  (for ((module modules))
+    (tqueue-add! queue (module-name module) (map import-name (module-imports module))))
+  (let loop ((acc null))
+    (define name (tqueue-try-get queue))
+    (if name
+       (begin
+         (tqueue-satisfy! queue name)
+         (loop (cons (dict-ref module-map name) acc)))
+       (reverse acc))))
+
+(define (initialize-module-store modules)
+  (define linear-modules (linearize-modules modules))
+  (define module-store (make-hash))
+  (for ((module linear-modules))
+    (dict-set! module-store
+               (module-name module)
+               (module-env module-store module)))
+  module-store)
+
 
 
 (define color-module (parse-yaspl (with-input-from-file "color.rkt" read)))
+(define bool-module (parse-yaspl (with-input-from-file "bool.yaspl" read)))
+(define bool-program1 (parse-yaspl (with-input-from-file "bool-prog1.yaspl" read)))
+(define bool-program2 (parse-yaspl (with-input-from-file "bool-prog2.yaspl" read)))
+(define modules (linearize-modules (list color-module bool-module)))
+(define module-store (initialize-module-store modules))
+(interp-program module-store bool-program1)
+(interp-program module-store bool-program2)
 ;; (with-input-from-file "color.rkt" read)
 ;; (parse-yaspl (with-input-from-file "color.rkt" read))
-(interp-module (hash) color-module)

@@ -1,0 +1,5 @@
+(program
+ (import bool)
+ (xor (or (not True)
+          (and True False))
+      (xor True True)))

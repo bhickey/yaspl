@@ -1,0 +1,32 @@
+(module bool
+ (import)
+ (export not or and xor main True False)
+
+ (data bool ()
+  (True)
+  (False))
+
+ (defn not (x)
+   (case x
+    ((True) -> False)
+    ((False) -> True)))
+
+ (defn or (x y)
+    (case x
+     ((True) -> True)
+     ((False) -> y)))
+
+ (defn and (x y)
+    (case x
+     ((True) -> y)
+     ((False) -> False)))
+
+ (defn xor (x y)
+    (case x
+     ((True) -> (not y))
+     ((False) -> y)))
+
+ (defn main (unused)
+    (xor (or (not True)
+             (and True False))
+         (xor True True))))
