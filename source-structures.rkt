@@ -46,6 +46,8 @@
 (struct: wildcard-pattern () #:transparent)
 (struct: constructor-pattern ((constructor : Symbol) (args : (Listof Pattern))) #:transparent)
 
+;; Other constructors
+
 (: lam* ((Listof Symbol) Expression -> Expression))
 (define (lam* args body)
   (foldr lam body args))
@@ -55,3 +57,36 @@
   (foldl (lambda: ((arg : Expression)
                    (acc : Expression)) (app acc arg))
          op args))
+
+
+;; Free-variables
+
+(: free-variables (Expression -> (Setof Symbol)))
+(define (free-variables expr)
+  (match expr
+    ((or (int _) (str _) (unit)) (set))
+    ((id v) (set v))
+    ((lam arg body) (set-remove (free-variables body) arg))
+    ((app fn arg) (set-union (free-variables fn) (free-variables arg)))
+    ((prim-app sym info args) (apply set args))
+    ((case expr clauses)
+     (apply set-union
+            (free-variables expr)
+            (map clause-free-variables clauses)))))
+
+(: clause-free-variables (clause -> (Setof Symbol)))
+(define (clause-free-variables cl)
+  (match cl
+    ((clause pat body)
+     (set-subtract (free-variables body)
+                   (bound-variables pat)))))
+
+(: bound-variables (Pattern -> (Setof Symbol)))
+(define (bound-variables pat)
+  (match pat
+   ((or (number-pattern _) (string-pattern _) (wildcard-pattern))
+    (set))
+   ((identifier-pattern id) (set id))
+   ((constructor-pattern name args)
+    (apply set-union ((inst set Symbol)) (map bound-variables args)))))
+
