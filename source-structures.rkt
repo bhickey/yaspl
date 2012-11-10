@@ -30,8 +30,9 @@
 (struct: app ((fn : Expression)
               (argument : Expression)) #:transparent)
 ;; TODO replace this with something else as it embeds the evaluator in the source
-(struct: prim-app ((fn : (Any * -> Any))
-                   (args : (Listof Symbol))) #:transparent)
+(struct: prim-app ((prim : Symbol)
+                   (info : Any)
+                   (args : (Listof Symbol))))
 (struct: case ((expr : Expression)
                (clauses : (Listof clause))) #:transparent)
 (struct: clause ((pattern : Pattern)

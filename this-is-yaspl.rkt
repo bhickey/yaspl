@@ -14,7 +14,11 @@
 (struct rt-closure (arg body (env #:mutable)) #:transparent)
 
 
+(define (prim-adt-constructor tag args)
+  (rt-adt tag args))
 
+(define prim-interp-dict
+  (hash 'adt-constructor prim-adt-constructor))
 
 
 
@@ -27,8 +31,8 @@
     ((str v) (rt-str v))
     ((id v) (dict-ref env v))
     ((lam arg bdy) (rt-closure arg bdy env))
-    ((prim-app fn args)
-     (apply fn (map (compose (curry dict-ref env) id-val) args)))
+    ((prim-app name info args)
+     ((dict-ref prim-interp-dict name) info (map (compose (curry dict-ref env) id-val) args)))
     ((app fn arg)
      (match (rinterp fn)
        ((rt-closure arg-name body senv) (interp (dict-set senv arg-name (rinterp arg)) body))))
@@ -91,7 +95,7 @@
        (define gensyms (map gensym fields))
        (values name
                (interp (hash) (foldr lam
-                                     (prim-app (lambda args (rt-adt name args)) gensyms)
+                                     (prim-app 'adt-constructor name gensyms)
                                      gensyms)))))))
 
 (define (interp-program module-store prog)
