@@ -1,6 +1,7 @@
 #lang racket
 
 (require (planet dyoo/tqueue)
+         "parser.rkt"
          "source-structures.rkt")
 
 
@@ -12,53 +13,11 @@
 (struct rt-adt (tag fields) #:transparent)
 (struct rt-closure (arg body (env #:mutable)) #:transparent)
 
-(define (parse-yaspl x)
-  (match x
-    ((list 'module moduleName 
-           (list 'import (? symbol? imports) ...)
-           (list 'export (? symbol? exports) ...)
-           data-defns ...)
-     (define parsed-data-defns (map parse-data-def data-defns))
-     (module moduleName (map import imports) (map export exports)
-       (filter data? parsed-data-defns)
-       (filter defn? parsed-data-defns)))
-    ((list 'program (list 'import (? symbol? imports) ...) expr)
-     (program (map import imports) (parse-expr expr)))))
 
-(define (parse-data-def sexpr)
-  (match sexpr
-    ((list 'data id (list (? symbol? params) ...) variants ...)
-     (data id params (map parse-variant variants)))
-    ((list 'defn id (list args ...) body)
-     (defn id (foldl lam (parse-expr body) args)))))
 
-(define (parse-variant sexpr)
-  (match sexpr
-    ((list id fields ...) (variant id fields))))
 
-(define (parse-expr sexpr)
-  (match sexpr
-    ((? integer? sexpr) (int sexpr))
-    ((? string? sexpr) (str sexpr))
-    ((? symbol? sexpr) (id sexpr))
-    ((list 'lambda (list (? symbol? args) ...) body)
-     (foldl lam (parse-expr body) args))
-    ((list 'case expr a-clause ...) (case (parse-expr expr) (map parse-clause a-clause)))
-    ((list fn) (app fn unit))
-    ((list fn args ...) 
-     (foldr (lambda (arg acc) (app acc arg)) (parse-expr fn) (map parse-expr args)))))
 
-(define (parse-clause sexpr)
-  (match sexpr
-    ((list pattern '-> expr) (clause (parse-pattern pattern) (parse-expr expr)))))
 
-(define (parse-pattern sexpr)
-  (match sexpr
-    ((? number? v) (number-pattern v))
-    ((? string? v) (string-pattern v))
-    ('_ (wildcard-pattern))
-    ((? symbol? v) (identifier-pattern v)) 
-    ((list constructor args ...) (constructor-pattern constructor (map parse-pattern args)))))
 
 (define (interp env expr)
   (define (rinterp subexpr)
@@ -165,10 +124,10 @@
 
 
 
-(define color-module (parse-yaspl (with-input-from-file "color.rkt" read)))
-(define bool-module (parse-yaspl (with-input-from-file "bool.yaspl" read)))
-(define bool-program1 (parse-yaspl (with-input-from-file "bool-prog1.yaspl" read)))
-(define bool-program2 (parse-yaspl (with-input-from-file "bool-prog2.yaspl" read)))
+(define color-module (parse-yaspl (with-input-from-file "color.rkt" read-syntax)))
+(define bool-module (parse-yaspl (with-input-from-file "bool.yaspl" read-syntax)))
+(define bool-program1 (parse-yaspl (with-input-from-file "bool-prog1.yaspl" read-syntax)))
+(define bool-program2 (parse-yaspl (with-input-from-file "bool-prog2.yaspl" read-syntax)))
 (define modules (linearize-modules (list color-module bool-module)))
 (define module-store (initialize-module-store modules))
 (interp-program module-store bool-program1)
