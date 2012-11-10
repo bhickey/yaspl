@@ -20,11 +20,10 @@
 (struct: variant ((name : Symbol) (fields : (Listof Symbol))) #:transparent)
 (struct: defn ((name : Symbol) (expr : Expression)) #:transparent)
 
-(define-type Expression (U int str unit id lam app prim-app case))
+(define-type Expression (U int str id lam app prim-app case))
 ;; Expressions
 (struct: int ((val : Integer)) #:transparent)
 (struct: str ((val : String)) #:transparent)
-(struct: unit () #:transparent)
 (struct: id ((val : Symbol)) #:transparent)
 (struct: lam ((arg : Symbol) (body : Expression)) #:transparent)
 (struct: app ((fn : Expression)
@@ -64,7 +63,7 @@
 (: free-variables (Expression -> (Setof Symbol)))
 (define (free-variables expr)
   (match expr
-    ((or (int _) (str _) (unit)) (set))
+    ((or (int _) (str _)) (set))
     ((id v) (set v))
     ((lam arg body) (set-remove (free-variables body) arg))
     ((app fn arg) (set-union (free-variables fn) (free-variables arg)))

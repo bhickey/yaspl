@@ -4,24 +4,18 @@
          "parser.rkt"
          "source-structures.rkt")
 
-
 ;; Runtime Structures
 ;; Values
 (struct rt-int (val) #:transparent)
 (struct rt-str (val) #:transparent)
-(struct rt-unit () #:transparent)
 (struct rt-adt (tag fields) #:transparent)
 (struct rt-closure (arg body (env #:mutable)) #:transparent)
-
 
 (define (prim-adt-constructor tag args)
   (rt-adt tag args))
 
 (define prim-interp-dict
   (hash 'adt-constructor prim-adt-constructor))
-
-
-
 
 (define (interp env expr)
   (define (rinterp subexpr)
@@ -36,7 +30,6 @@
     ((app fn arg)
      (match (rinterp fn)
        ((rt-closure arg-name body senv) (interp (dict-set senv arg-name (rinterp arg)) body))))
-    ((unit) (rt-unit))
     ((case expr clauses)
      (define val (rinterp expr))
      (ormap (lambda (clause) (interp-clause clause val env)) clauses))))
@@ -53,7 +46,6 @@
      (and (equal? constructor tag) (interp (foldl (lambda (id val env) (dict-set env id val))
                                                   env ids vals) expr)))
     (((identifier-pattern id) _) (interp (dict-set env id val) expr))))
-
 
 (define (simple-interp expr)
   (match expr
@@ -125,8 +117,6 @@
                (module-name module)
                (module-env module-store module)))
   module-store)
-
-
 
 (define color-module (parse-yaspl (with-input-from-file "color.rkt" read-syntax)))
 (define bool-module (parse-yaspl (with-input-from-file "bool.yaspl" read-syntax)))
