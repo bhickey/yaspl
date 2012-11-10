@@ -44,9 +44,9 @@
     ((list 'lambda (list (? symbol? args) ...) body)
      (foldl lam (parse-expr body) args))
     ((list 'case expr a-clause ...) (case (parse-expr expr) (map parse-clause a-clause)))
-    ((list fn) (application fn unit))
+    ((list fn) (app fn unit))
     ((list fn args ...) 
-     (foldr (lambda (arg acc) (application acc arg)) (parse-expr fn) (map parse-expr args)))))
+     (foldr (lambda (arg acc) (app acc arg)) (parse-expr fn) (map parse-expr args)))))
 
 (define (parse-clause sexpr)
   (match sexpr
@@ -70,7 +70,7 @@
     ((lam arg bdy) (rt-closure arg bdy env))
     ((prim-app fn args)
      (apply fn (map (compose (curry dict-ref env) id-val) args)))
-    ((application fn arg)
+    ((app fn arg)
      (match (rinterp fn)
        ((rt-closure arg-name body senv) (interp (dict-set senv arg-name (rinterp arg)) body))))
     ((unit) (rt-unit))
