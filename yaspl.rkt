@@ -112,10 +112,16 @@
                (module-env module-store module)))
   module-store)
 
-(define color-module (parse-yaspl (with-input-from-file "color.rkt" read-syntax)))
-(define bool-module (parse-yaspl (with-input-from-file "bool.yaspl" read-syntax)))
-(define bool-program1 (parse-yaspl (with-input-from-file "bool-prog1.yaspl" read-syntax)))
-(define bool-program2 (parse-yaspl (with-input-from-file "bool-prog2.yaspl" read-syntax)))
+(define (read-yaspl-file path)
+  (call-with-input-file path
+    (lambda (port)
+      (port-count-lines! port)
+      (parse-yaspl (read-syntax path port)))))
+
+(define color-module (read-yaspl-file "color.rkt"))
+(define bool-module (read-yaspl-file "bool.yaspl"))
+(define bool-program1 (read-yaspl-file "bool-prog1.yaspl"))
+(define bool-program2 (read-yaspl-file "bool-prog2.yaspl"))
 (define modules (linearize-modules (list color-module bool-module)))
 (define byte-interface (module-interface 'byte (list (export 'byte) (export 'concat-bytes))))
 (define module-store (initialize-module-store modules))

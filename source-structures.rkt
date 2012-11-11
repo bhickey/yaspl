@@ -25,6 +25,14 @@
 (struct: variant ((name : Symbol) (fields : (Listof Symbol))) #:transparent)
 (struct: defn ((name : Symbol) (expr : Expression)) #:transparent)
 
+;; Types
+(define-type Type (U fun-ty id-ty int-ty string-ty ty-app))
+(struct: fun-ty ((arg : Type) (result : Type)))
+(struct: ty-app ((arg : Type) (result : Type)))
+(struct: id-ty ((val : Symbol)))
+(struct: int-ty ())
+(struct: string-ty ())
+
 (define-type Expression (U int str id lam app case))
 ;; Expressions
 (struct: int ((val : Integer)) #:transparent)

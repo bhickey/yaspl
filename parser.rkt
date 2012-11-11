@@ -41,11 +41,17 @@
            #:attr v (map src:export (attribute s.v))))
 
 (define-syntax-class defn
-  (pattern ((~datum defn) name:symbol (args:symbol ...) e:expr)
+  (pattern ((~datum defn) name:symbol (args:symbol ...) ty:type e:expr)
            #:attr v (src:defn
                       (attribute name.v)
                       (src:lam* (attribute args.v)
                                 (attribute e.v)))))
+
+(define-syntax-class type
+  (pattern ((~seq tys:type (~datum ->)) ... ty:type)
+           #:attr v (foldr src:fun-ty (attribute ty.v) (attribute tys.v)))
+  (pattern id:symbol
+           #:attr v (src:id-ty (attribute id.v))))
 
 (define-syntax-class data
   (pattern ((~datum data) name:symbol (params:symbol ...) var:variant ...)
