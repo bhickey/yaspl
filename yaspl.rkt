@@ -10,12 +10,7 @@
 (struct rt-str (val) #:transparent)
 (struct rt-adt (tag fields) #:transparent)
 (struct rt-closure (arg body (env #:mutable)) #:transparent)
-
-(define (prim-adt-constructor tag args)
-  (rt-adt tag args))
-
-(define prim-interp-dict
-  (hash 'adt-constructor prim-adt-constructor))
+(struct rt-prim-closure (fn) #:transparent)
 
 (define (interp env expr)
   (define (rinterp subexpr)
@@ -25,11 +20,10 @@
     ((str v) (rt-str v))
     ((id v) (dict-ref env v))
     ((lam arg bdy) (rt-closure arg bdy env))
-    ((prim-app name info args)
-     ((dict-ref prim-interp-dict name) info (map (compose (curry dict-ref env) id-val) args)))
     ((app fn arg)
      (match (rinterp fn)
-       ((rt-closure arg-name body senv) (interp (dict-set senv arg-name (rinterp arg)) body))))
+       ((rt-closure arg-name body senv) (interp (dict-set senv arg-name (rinterp arg)) body))
+       ((rt-prim-closure fn) (fn (rinterp arg)))))
     ((case expr clauses)
      (define val (rinterp expr))
      (ormap (lambda (clause) (interp-clause clause val env)) clauses))))
@@ -84,11 +78,11 @@
   (match a-data
     ((data _ _ (list (variant names fieldss) ...))
      (for/hash ((name names) (fields fieldss))
-       (define gensyms (map gensym fields))
        (values name
-               (interp (hash) (foldr lam
-                                     (prim-app 'adt-constructor name gensyms)
-                                     gensyms)))))))
+               (let ((base (lambda (args) (rt-adt name args))))
+                 ((for/fold ((inner base)) ((field fields))
+                    (lambda (args) (rt-prim-closure (lambda (arg) (inner (cons arg args))))))
+                  null)))))))
 
 (define (interp-program module-store prog)
   (match prog

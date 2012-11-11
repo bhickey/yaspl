@@ -25,7 +25,7 @@
 (struct: variant ((name : Symbol) (fields : (Listof Symbol))) #:transparent)
 (struct: defn ((name : Symbol) (expr : Expression)) #:transparent)
 
-(define-type Expression (U int str id lam app prim-app case))
+(define-type Expression (U int str id lam app case))
 ;; Expressions
 (struct: int ((val : Integer)) #:transparent)
 (struct: str ((val : String)) #:transparent)
@@ -33,10 +33,6 @@
 (struct: lam ((arg : Symbol) (body : Expression)) #:transparent)
 (struct: app ((fn : Expression)
               (argument : Expression)) #:transparent)
-;; TODO replace this with something else as it embeds the evaluator in the source
-(struct: prim-app ((prim : Symbol)
-                   (info : Any)
-                   (args : (Listof Symbol))))
 (struct: case ((expr : Expression)
                (clauses : (Listof clause))) #:transparent)
 (struct: clause ((pattern : Pattern)
@@ -78,7 +74,6 @@
     ((id v) (set v))
     ((lam arg body) (set-remove (free-variables body) arg))
     ((app fn arg) (set-union (free-variables fn) (free-variables arg)))
-    ((prim-app sym info args) (apply set args))
     ((case expr clauses)
      (apply set-union
             (free-variables expr)

@@ -15,7 +15,6 @@
 (struct: mod-id (val type))
 (struct: lam (arg body type))
 (struct: app (arg body type))
-(struct: prim-app (prim info args type))
 (struct: case (expr clauses type))
 (struct: clause (pattern expr type))
 
@@ -24,7 +23,6 @@
     ((int _) (int-type))
     ((str _) (str-type))
     ((app _ _ t) t)
-    ((prim-app _ _ _ t) t)
     ((id _ t) t)
     ((lam _ _ t) t)
     ((case _ _ t) t)
@@ -40,7 +38,6 @@
       (define typed-body (convert env body))
       (lam arg typed-body (fn-type arg-type (typeof typed-body))))
     ((src:app arg body) (app arg body (convert env body)))
-    ((src:prim-app prim info args) (error "unsupported"))
     ((src:case expr clauses)
       (define typed-clauses (map (convert env) clauses))
       (case expr typed-clauses (typeof (first typed-clauses))))
