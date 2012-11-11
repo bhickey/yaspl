@@ -1,5 +1,5 @@
 (module colors
- (import)  ;; (import io)
+ (import byte)
  (export shift-to-bytes Red Green Blue)
  (data Color ()
        (Red)
@@ -12,7 +12,7 @@
      ((Red) -> (byte "red"))
      ((Green) -> (byte "green"))
      ((Blue) -> (byte "blue"))
-     ((Intensify x) -> (concat (byte "intensify") (color-to-bytes x))))) 
+     ((Intensify x) -> (concat-bytes (byte "intensify") (color-to-bytes x)))))
  
  ;; shift :: color -> color
  (defn shift (c)
@@ -20,7 +20,7 @@
      ((Red) -> Green)
      ((Green) -> Blue)
      ((Blue) -> Red)
-     ((Itensify c) -> (Intesify (shift c)))))
+     ((Intensify c) -> (Intensify (shift c)))))
  
  (defn shift-to-bytes (c)
    (color-to-bytes (shift c))))

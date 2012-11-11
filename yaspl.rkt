@@ -123,7 +123,13 @@
 (define bool-program1 (parse-yaspl (with-input-from-file "bool-prog1.yaspl" read-syntax)))
 (define bool-program2 (parse-yaspl (with-input-from-file "bool-prog2.yaspl" read-syntax)))
 (define modules (linearize-modules (list color-module bool-module)))
+(define byte-interface (module-interface 'byte (list (export 'byte) (export 'concat-bytes))))
 (define module-store (initialize-module-store modules))
+(define interfaces (hash-set (modules->module-interfaces modules) 'byte byte-interface))
+(for ((mod (list color-module bool-module bool-program1 bool-program2)))
+  (check-unbound-variables! mod interfaces))
+
+
 (interp-program module-store bool-program1)
 (interp-program module-store bool-program2)
 ;; (with-input-from-file "color.rkt" read)
