@@ -1,0 +1,19 @@
+
+
+;; Start
+
+Find file for wanted module
+Read module into bytes
+Convert to s-expression
+Convert to source adt
+Figure out imported bindings
+Check that every variable use is bound
+Rename everything to be unique.
+MAYBE: Turn to new syntax here where ids are module or lexical.
+Enrich type environment with types from data forms.
+Check data forms are well kinded.
+Enrich value environment and pattern environment with bindings from data forms.
+Check defn forms are well kinded.
+Check defn forms are well typed (generates constraints for every identifier in the program).
+
+

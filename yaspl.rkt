@@ -2,7 +2,8 @@
 
 (require (planet dyoo/tqueue)
          "parser.rkt"
-         "source-structures.rkt")
+         "source-structures.rkt"
+         "resolve-module.rkt")
 
 ;; Runtime Structures
 ;; Values
@@ -122,10 +123,20 @@
 (define bool-module (read-yaspl-file "bool.yaspl"))
 (define bool-program1 (read-yaspl-file "bool-prog1.yaspl"))
 (define bool-program2 (read-yaspl-file "bool-prog2.yaspl"))
-(define modules (linearize-modules (list color-module bool-module)))
-(define byte-interface (module-interface 'byte (list (export 'byte) (export 'concat-bytes))))
+(define modules (list color-module bool-module))
+
+(resolve-module bool-module #f)
+
+#;
+(define byte-interface
+  (module-interface 'byte
+     (list (type-export 'bytes (type-kind)))
+     (list (var-export 'byte (id-ty 'bytes))
+           (var-export 'concat-bytes (fun-ty (id-ty 'bytes) (fun-ty (id-ty 'bytes) (id-ty 'bytes)))))))
 (define module-store (initialize-module-store modules))
+#;
 (define interfaces (hash-set (modules->module-interfaces modules) 'byte byte-interface))
+#;
 (for ((mod (list color-module bool-module bool-program1 bool-program2)))
   (check-unbound-variables! mod interfaces))
 

@@ -41,11 +41,33 @@
            #:attr v (map src:export (attribute s.v))))
 
 (define-syntax-class defn
-  (pattern ((~datum defn) name:symbol (args:symbol ...) ty:type e:expr)
+  (pattern ((~datum defn) name:symbol (args:symbol ...) ty:type-scheme e:expr)
            #:attr v (src:defn
                       (attribute name.v)
                       (src:lam* (attribute args.v)
                                 (attribute e.v)))))
+(define-syntax-class kind
+  (pattern (~datum *) #:attr v (src:type-kind))
+  (pattern ((~seq ks:kind (~datum ->)) ... k:type)
+           #:attr v (foldr src:arr-kind (attribute k.v) (attribute ks.v))))
+
+
+
+(define-syntax-class type-scheme
+  (pattern ((~datum All) (vars:kind-variable ...) t:type)
+           #:attr v (src:type-scheme (map list (attribute vars.name) (attribute vars.kind))
+                                     (attribute t.v)))
+  (pattern t:type
+           #:attr v (src:type-scheme null (attribute t.v))))
+
+(define-syntax-class kind-variable
+  (pattern sym:symbol
+           #:attr name (attribute sym.v)
+           #:attr kind (src:type-kind))
+  (pattern (sym:symbol (~datum :) k:kind)
+           #:attr name (attribute sym.v)
+           #:attr kind (attribute k.v)))
+
 
 (define-syntax-class type
   (pattern ((~seq tys:type (~datum ->)) ... ty:type)
@@ -54,10 +76,10 @@
            #:attr v (src:id-ty (attribute id.v))))
 
 (define-syntax-class data
-  (pattern ((~datum data) name:symbol (params:symbol ...) var:variant ...)
+  (pattern ((~datum data) name:symbol (params:kind-variable ...) var:variant ...)
            #:attr v (src:data
                       (attribute name.v)
-                      (attribute params.v)
+                      (map list (attribute params.name) (attribute params.kind))
                       (attribute var.v))))
 
 (define-syntax-class variant

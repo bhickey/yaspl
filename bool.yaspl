@@ -26,7 +26,8 @@
      ((True) -> (not y))
      ((False) -> y)))
 
- (defn main (unused) (bool -> bool)
-    (xor (or (not True)
-             (and True False))
-         (xor True True))))
+ (defn main (arg) (bool -> bool)
+    (and (or arg True)
+      (xor (or (not True)
+               (and True False))
+           (xor True True)))))
