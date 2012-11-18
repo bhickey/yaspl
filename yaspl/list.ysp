@@ -1,0 +1,45 @@
+(module list
+  (import bool)
+  (export emptyList listOf cons reverse foldl map filter)
+
+  (data list (t)
+    (emptyList)
+    (listOf t (list t)))
+
+  (defn cons (e i)
+    (All (v) (v -> list v -> list v))
+    (listOf e i))
+
+  (defn reverse' (i acc)
+    (All (a) (list a -> list a -> list a))
+    (case i
+      ((emptyList) -> acc)
+      ((listOf e rest) -> rev rest (cons e acc))))
+  
+  (defn reverse (i)
+    (All (a) (list a -> list a))
+    (reverse' i emptyList))
+
+  (defn foldl (fn i acc)
+    (All (a b) ((a -> b -> a) -> a -> list b -> a))
+    (case i
+      ((emptyList) -> acc)
+      ((listOf e rest) -> (foldl fn rest (fn e acc)))))
+
+  (defn map (f i)
+    (All (a b) ((a -> b) -> list a -> list b))
+    (reverse 
+      (foldl 
+        (lambda (e acc) 
+          (cons (f e) acc))
+        i emptyList)))
+
+  (defn filter (f i)
+    (All (a) ((a -> bool) -> list a -> list a))
+    (reverse (foldl
+        (lambda (e acc)
+          (case (f e)
+            ((True) -> (cons e acc))
+            ((False) -> acc)))
+        i emptyList)))
+)
