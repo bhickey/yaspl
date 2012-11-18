@@ -112,18 +112,18 @@
       (hash-set env name (unique name))))
 
 
-  (: data-type-syms (hashtable symbol symbol))
+  (: data-type-syms (HashTable Symbol Symbol))
   (define data-type-syms
     (make-immutable-hash
-      (for/list: : (listof (pair symbol symbol))
+      (for/list: : (Listof (Pair Symbol Symbol))
           ((data datas))
         (define name (src:data-name data))
         (cons name (unique name)))))
 
-  (: data-type-types (hashtable symbol res:type-constructor))
+  (: data-type-types (HashTable Symbol res:type-constructor))
   (define data-type-types
     (make-immutable-hash
-      (for/list: : (listof (pair symbol res:type-constructor))
+      (for/list: : (Listof (Pair Symbol res:type-constructor))
           ((data datas))
         (match data
           ((src:data name params _)
@@ -131,12 +131,12 @@
              (res:type-constructor
                module-name
                (hash-ref data-type-syms name)
-               (for/fold: ((kind : src:kind (src:type-kind)))
-                          ((arg : (list symbol src:kind) (reverse params)))
+               (for/fold: ((kind : src:Kind (src:type-kind)))
+                          ((arg : (List Symbol src:Kind) (reverse params)))
                  (src:arr-kind (second arg) kind)))))))))
 
 
-  (: module-type-ids (hashtable symbol res:type-constructor))
+  (: module-type-ids (HashTable Symbol res:type-constructor))
   (define module-type-ids 
     (hash-union imported-types data-type-types))
 
@@ -184,9 +184,9 @@
                (map src:variant-name variants)
                (map convert-variant variants))))))
 
-  (: module-var-ids (hashtable symbol (u res:module-id res:lexical-id)))
+  (: module-var-ids (HashTable Symbol (U res:module-id res:lexical-id)))
   (define module-var-ids 
-    (let: ((inject : (symbol -> (u res:module-id res:lexical-id)) res:lexical-id))
+    (let: ((inject : (Symbol -> (U res:module-id res:lexical-id)) res:lexical-id))
       (hash-union imported-var-ids 
                   (hash-value-map inject defined-syms)
                   (hash-value-map inject data-var-syms))))
@@ -277,9 +277,9 @@
              (hash-ref data-var-syms name)
              (for/list: : (Listof res:Type) ((field : Symbol fields))
                 (hash-ref new-env field))))))
-      (: pair (Symbol src:Kind -> (List Symbol src:Kind)))
-      (define (pair a b) (list a b))
-      (res:data new-name (map pair new-param-names param-kinds) (map resolve-variant variants))))
+      (: Pair (Symbol src:Kind -> (List Symbol src:Kind)))
+      (define (Pair a b) (list a b))
+      (res:data new-name (map Pair new-param-names param-kinds) (map resolve-variant variants))))
 
   ;; TODO
   (: new-exports res:exports)
