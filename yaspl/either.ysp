@@ -1,0 +1,27 @@
+(module either
+  (import bool list)
+  (export either right left rights lefts)
+
+  (data Either (a b)
+    (left a)
+    (right b))
+
+  (defn either (l r e)
+    (case e
+      ((left a) -> (l a))
+      ((right b) -> (r b))))
+
+  (defn isRight (e)
+    (All (a b) (Either a b -> bool))
+    (case x
+      ((left _) -> false)
+      ((right _) -> true)))
+
+  (defn rights (i)
+    (All (a b) (List (Either a b) -> List b))
+    (filter isRight i))
+
+  (defn lefts (i)
+    (All (a b) (List (Either a b) -> List a))
+    (filter (not isRight) i))
+)
