@@ -68,11 +68,12 @@
            #:attr name (attribute sym.v)
            #:attr kind (attribute k.v)))
 
-
 (define-syntax-class type
   (pattern ((~seq tys:type (~datum ->)) ... ty:type)
            #:attr v (foldr src:fun-ty (attribute ty.v) (attribute tys.v)))
-  (pattern id:symbol
+  (pattern (tys:type ... ty:type)
+           #:attr v (foldr src:ty-app (attribute ty.v) (attribute tys.v)))
+  (pattern (~and (~not (~datum ->)) id:symbol)
            #:attr v (src:id-ty (attribute id.v))))
 
 (define-syntax-class data
