@@ -1,0 +1,12 @@
+(module compare
+  (import)
+  (export compare LessThan GreaterThan EqualTo)
+
+  (data Comparison ()
+    (LessThan)
+    (EqualTo)
+    (GreaterThan))
+
+  (defn compare (x y) (Int -> Int -> Comparison)
+    EqualTo)
+)

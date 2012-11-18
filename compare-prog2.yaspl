@@ -1,0 +1,4 @@
+(program
+ (import compare)
+
+ (compare 1 2))

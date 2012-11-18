@@ -1,0 +1,3 @@
+(program
+  (import dict)
+  (singleton 1 "foo"))
