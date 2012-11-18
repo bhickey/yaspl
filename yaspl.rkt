@@ -120,9 +120,9 @@
       (parse-yaspl (read-syntax path port)))))
 
 (define color-module (read-yaspl-file "yaspl/color.rkt"))
-(define bool-module (read-yaspl-file "yaspl/bool.yaspl"))
-(define bool-program1 (read-yaspl-file "yaspl/bool-prog1.yaspl"))
-(define bool-program2 (read-yaspl-file "yaspl/bool-prog2.yaspl"))
+(define bool-module (read-yaspl-file "yaspl/bool.ysp"))
+(define bool-program1 (read-yaspl-file "yaspl/bool-prog1.ysp"))
+(define bool-program2 (read-yaspl-file "yaspl/bool-prog2.ysp"))
 (define modules (list color-module bool-module))
 
 (resolve-module bool-module #f)

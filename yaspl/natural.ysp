@@ -1,5 +1,3 @@
-#lang yaspl
-
 ;; Natural numbers
 (module natural
   (import)
