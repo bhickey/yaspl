@@ -8,10 +8,6 @@
 (require/typed unstable/hash
   (hash-union (All (b) ((HashTable Symbol b) (HashTable Symbol b) * -> (HashTable Symbol b)))))
 
-(require/typed "type-constraints.rkt"
-  (#:opaque ConstTerm const-term?)
-  (#:opaque AppTerm app-term?))
-
 (require/typed "type-inference.rkt"
   (infer-types ((Listof src:defn) (HashTable Symbol res:type-scheme) -> (HashTable Symbol res:Type))))
 
