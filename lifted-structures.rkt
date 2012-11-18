@@ -1,16 +1,33 @@
 #lang racket
 
+(provide (all-defined-out))
+
+(struct int (val))
+(struct string (val))
+(struct id (val type))
+(struct bind (id expr body))
+(struct app-fun (fun-id arg-ids type))
+(struct case (id clauses type))
+(struct make-closure (fun-id env-id))
+(struct closure-env (id))
+(struct closure-fun (id))
+
+(struct make-env (values))
+(struct env-ref (id index))
+
+(struct clause (pattern expr type))
+(struct id-pattern (id))
+(struct constructor-pattern (name ids))
+
+#|
 (require
   unstable/list
   (prefix-in typed: "typed-structures.rkt"))
 
-(struct: int (val))
-(struct: str (val))
-(struct: id (val type))
-(struct: case expr clauses type)
-(struct: clause pattern expr type)
-(struct: fn (arglist body type))
+(struct: lam (arglist body type))
 
+
+;; old:expr -> (values lifted:expr Set[(U Symbol Type)])
 (define (lift expr)
   (define (rlift (expr) (lift env expr)))
   (match expr
@@ -31,3 +48,4 @@
       (values
         (lam (concatenate args free-vars) lifted-body type)
         free-vars))))
+|#
