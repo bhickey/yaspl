@@ -57,23 +57,24 @@
                (variants : (Listof variant))) #:transparent)
 (struct: variant ((name : Symbol) (fields : (Listof Type))) #:transparent)
 
-(struct: defn ((name : Symbol) (expr : Expression)) #:transparent)
+(struct: defn ((name : Symbol) (type : type-scheme) (expr : Expression)) #:transparent)
 
 
 (define-type Expression (U int str lexical-id module-id lam app case))
 (struct: int ((val : Integer)) #:transparent)
 (struct: str ((val : String)) #:transparent)
-;; TODO add type to lexical-id
-(struct: lexical-id ((val : Symbol)) #:transparent)
-(struct: module-id
-  ((module : Symbol)
-   (name : Symbol)
-   (type : type-scheme)) #:transparent)
-(struct: lam ((arg : Symbol) (body : Expression)) #:transparent)
+
+(struct: id ((val : Symbol) (type : type-scheme)))
+(struct: inst ((expr : Expression) (types : (Listof Type))))
+
+(struct: lam ((arg : Symbol) (type : Type) (body : Expression)) #:transparent)
 (struct: app ((fn : Expression)
-              (argument : Expression)) #:transparent)
+              (argument : Expression)
+              (type : Type)) #:transparent)
 (struct: case ((expr : Expression)
-               (clauses : (Listof clause))) #:transparent)
+               (clauses : (Listof clause))
+               (arg-type : Type)
+               (return-type : Type)) #:transparent)
 (struct: clause ((pattern : Pattern)
                  (expr : Expression)) #:transparent)
 
