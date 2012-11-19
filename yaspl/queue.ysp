@@ -1,0 +1,19 @@
+(module queue
+  (import bool list maybe pair)
+  (export)
+
+  (data queue (a)
+    (queueOf (List a) (List a)))
+
+  (defn push (q a)
+    (All (a) (Queue a -> a -> Queue a))
+    (case q
+      ((queueOf r f) -> (queueOf r (cons f)))))
+
+  (defn pop (q)
+    (All (a) (queue a -> pair (queue a) (Maybe a)))
+    (case q
+      ((queueOf emptyList emptyList) -> (pair q nothing))
+      ((queueOf (listOf a b) c) -> (pair (queueOf b c) (just a)))
+      ((queueOf emptyList l) -> (pop (queueOf (reverse l) emptyList)))))
+)

@@ -1,0 +1,6 @@
+(module pair
+  (import)
+  (export pair pairOf)
+
+  (data pair (a b)
+    (pairOf a b)))
