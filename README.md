@@ -12,5 +12,6 @@ write, we can produce more robust software.
 Goals
 -----
 * LLVM Target
+* Independent compilation
 * Hygenic macros
 * No unchecked exceptions
