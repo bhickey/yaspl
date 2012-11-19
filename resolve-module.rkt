@@ -2,6 +2,7 @@
 
 (require
   "unique.rkt"
+  "hash.rkt"
   (prefix-in src: "source-structures.rkt")
   (prefix-in res: "resolved-structures.rkt"))
 
@@ -74,20 +75,45 @@
      (src:defn name (unique-expr expr (make-immutable-hash null))))))
 
 
+(: bogus-type-scheme res:type-scheme)
+(define bogus-type-scheme
+  (res:type-scheme null (res:type-id 'bogus (src:type-kind))))
+
+(: bogus-type res:Type)
+(define bogus-type
+  (res:type-id 'bogus (src:type-kind)))
 
 
 
-(: resolve-module (src:module #f -> res:module))
+(: resolve-module (src:module res:module-interfaces -> res:module))
 (define (resolve-module src-module module-interfaces)
   (match-define (src:module module-name imports exports datas orig-defns) src-module)
   (define defns (map unique-defn orig-defns))
 
 
-  ;; TODO 
-  (: imported-var-ids (HashTable Symbol (U res:module-id res:lexical-id)))
+  (: imported-interfaces (Listof res:module-interface))
+  (define imported-interfaces
+    (for/list ((import imports))
+      (hash-ref module-interfaces (src:import-name import))))
+
+  (: imported-var-ids (HashTable Symbol res:id))
+  (define imported-var-ids
+    (for*/hash: : (HashTable Symbol res:id)
+        ((interface imported-interfaces)
+         (var (res:module-interface-var-exports interface)))
+      (match-define (res:var-export var-name var-type) var)
+      ;;TODO let variables have polymorphic types
+      (values var-name (res:id var-name bogus-type))))
+
   (: imported-types (HashTable Symbol res:type-constructor))
-  (define imported-var-ids (make-immutable-hash null))
-  (define imported-types (make-immutable-hash null))
+  (define imported-types
+    (for*/hash: : (HashTable Symbol res:type-constructor)
+        ((interface imported-interfaces)
+         (type (res:module-interface-type-exports interface)))
+      (define mod-name (res:module-interface-name interface))
+      (match-define (res:type-export type-name value) type)
+      (values type-name (res:type-constructor mod-name type-name (res:type->kind value)))))
+
 
   (: defined-syms (HashTable Symbol Symbol))
   (define defined-syms
@@ -180,9 +206,9 @@
                (map src:variant-name variants)
                (map convert-variant variants))))))
 
-  (: module-var-ids (HashTable Symbol (U res:module-id res:lexical-id)))
+  (: module-var-ids (HashTable Symbol res:id))
   (define module-var-ids 
-    (let: ((inject : (Symbol -> (U res:module-id res:lexical-id)) res:lexical-id))
+    (let ((inject (lambda: ((sym : Symbol)) (res:id sym bogus-type))))
       (hash-union imported-var-ids 
                   (hash-value-map inject defined-syms)
                   (hash-value-map inject data-var-syms))))
@@ -195,7 +221,7 @@
 
   (: resolve-expr (src:Expression -> res:Expression))
   (define (resolve-expr expr)
-    (define-type Env (HashTable Symbol (U res:module-id res:lexical-id)))
+    (define-type Env (HashTable Symbol res:id))
     (: resolve-expr (src:Expression Env -> res:Expression))
     (define (resolve-expr expr env)
       (match expr
@@ -204,17 +230,20 @@
         ((src:id sym) (hash-ref env sym))
         ((src:lam arg body)
          (define new-arg (unique arg))
-         (res:lam new-arg (resolve-expr body (hash-set env arg (res:lexical-id new-arg)))))
+         (res:lam new-arg bogus-type (resolve-expr body (hash-set env arg (res:id new-arg bogus-type)))))
         ((src:app fn arg)
-         (res:app (resolve-expr fn env) (resolve-expr arg env)))
+         (res:app (resolve-expr fn env) (resolve-expr arg env) bogus-type))
         ((src:case expr clauses)
-         (res:case (resolve-expr expr env) (map (resolve-clause env) clauses)))))
+         (res:case (resolve-expr expr env) (map (resolve-clause env) clauses)
+                   bogus-type
+                   bogus-type))))
+
     (: resolve-clause (Env -> (src:clause -> res:clause)))
     (define ((resolve-clause env) clause)
       (match clause
         ((src:clause pattern expr)
          (define-values (new-pattern new-env) (resolve-pattern pattern env))
-         (res:clause new-pattern (resolve-expr expr new-env)))))
+         (res:clause new-pattern (resolve-expr expr new-env) bogus-type bogus-type))))
     (: resolve-pattern (src:Pattern Env -> (values res:Pattern Env)))
     (define (resolve-pattern pattern env)
       (match pattern
@@ -225,7 +254,7 @@
         ((src:identifier-pattern id)
          (define new-id (unique id))
          (values (res:identifier-pattern new-id)
-                 (hash-set env id (res:lexical-id new-id))))
+                 (hash-set env id (res:id new-id bogus-type))))
         ((src:wildcard-pattern)
          (values (res:wildcard-pattern) env))
         ((src:constructor-pattern name args)
@@ -248,7 +277,7 @@
   (define new-defns
     (for/list ((defn defns))
       (match-define (src:defn name expr) defn)
-      (res:defn (hash-ref defined-syms name) (resolve-expr expr))))
+      (res:defn (hash-ref defined-syms name) bogus-type-scheme (resolve-expr expr))))
 
   (: new-datas (Listof res:data))
   (define new-datas
@@ -277,14 +306,25 @@
       (define (Pair a b) (list a b))
       (res:data new-name (map Pair new-param-names param-kinds) (map resolve-variant variants))))
 
-  ;; TODO
   (: new-exports res:exports)
   (define new-exports
-    (res:exports null null))
+    (res:exports
+      (for/list: : (Listof (List Symbol res:type-export))
+          ((name (filter (lambda: ((name : Symbol)) (hash-has-key? module-type-ids name))
+                         (map src:export-name exports))))
+        (list (hash-ref data-type-syms name)
+              (res:type-export name (hash-ref module-type-ids name))))
+      (for/list: : (Listof (List Symbol res:var-export))
+          ((name (filter (lambda: ((name : Symbol)) (hash-has-key? module-var-ids name))
+                         (map src:export-name exports))))
+        (match (hash-ref module-var-ids name)
+          ((res:id new-name type)
+           (list new-name (res:var-export name bogus-type-scheme)))))))
+
 
   ;; TODO
   (: new-imports (Listof Symbol))
-  (define new-imports null)
+  (define new-imports (map src:import-name imports))
 
   (res:module module-name new-imports new-exports new-datas new-defns))
 

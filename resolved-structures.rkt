@@ -25,7 +25,8 @@
 
 (struct: type-export
   ((name : Symbol)
-   (kind : Kind)) #:transparent)
+   (value : Type)) #:transparent)
+
 (struct: var-export
   ((name : Symbol)
    (type : type-scheme)) #:transparent)
@@ -33,7 +34,13 @@
 (struct: type-scheme ((args : (Listof (List Symbol Kind)))
                       (base : Type)) #:transparent)
 
+(: type->kind (Type -> Kind))
+(define (type->kind ty)
+  ;; TODO
+  (src:type-kind))
+
 (define-type Type (U type-constructor type-app type-id))
+
 (struct: type-constructor
   ((module : Symbol)
    (name : Symbol)
@@ -60,11 +67,11 @@
 (struct: defn ((name : Symbol) (type : type-scheme) (expr : Expression)) #:transparent)
 
 
-(define-type Expression (U int str lexical-id module-id lam app case))
+(define-type Expression (U int str id id lam app case))
 (struct: int ((val : Integer)) #:transparent)
 (struct: str ((val : String)) #:transparent)
 
-(struct: id ((val : Symbol) (type : type-scheme)))
+(struct: id ((val : Symbol) (type : Type)))
 (struct: inst ((expr : Expression) (types : (Listof Type))))
 
 (struct: lam ((arg : Symbol) (type : Type) (body : Expression)) #:transparent)
@@ -76,7 +83,9 @@
                (arg-type : Type)
                (return-type : Type)) #:transparent)
 (struct: clause ((pattern : Pattern)
-                 (expr : Expression)) #:transparent)
+                 (expr : Expression)
+                 (pattern-type : Type)
+                 (return-type : Type)) #:transparent)
 
 (define-type Pattern (U number-pattern string-pattern identifier-pattern wildcard-pattern constructor-pattern))
 ;; Patterns
