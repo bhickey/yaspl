@@ -111,8 +111,8 @@
         ((interface imported-interfaces)
          (type (res:module-interface-type-exports interface)))
       (define mod-name (res:module-interface-name interface))
-      (match-define (res:type-export type-name type-kind) type)
-      (values type-name (res:type-constructor mod-name type-name type-kind))))
+      (match-define (res:type-export type-name value) type)
+      (values type-name (res:type-constructor mod-name type-name (res:type->kind value)))))
 
 
   (: defined-syms (HashTable Symbol Symbol))
@@ -306,14 +306,25 @@
       (define (Pair a b) (list a b))
       (res:data new-name (map Pair new-param-names param-kinds) (map resolve-variant variants))))
 
-  ;; TODO
   (: new-exports res:exports)
   (define new-exports
-    (res:exports null null))
+    (res:exports
+      (for/list: : (Listof (List Symbol res:type-export))
+          ((name (filter (lambda: ((name : Symbol)) (hash-has-key? module-type-ids name))
+                         (map src:export-name exports))))
+        (list (hash-ref data-type-syms name)
+              (res:type-export name (hash-ref module-type-ids name))))
+      (for/list: : (Listof (List Symbol res:var-export))
+          ((name (filter (lambda: ((name : Symbol)) (hash-has-key? module-var-ids name))
+                         (map src:export-name exports))))
+        (match (hash-ref module-var-ids name)
+          ((res:id new-name type)
+           (list new-name (res:var-export name bogus-type-scheme)))))))
+
 
   ;; TODO
   (: new-imports (Listof Symbol))
-  (define new-imports null)
+  (define new-imports (map src:import-name imports))
 
   (res:module module-name new-imports new-exports new-datas new-defns))
 

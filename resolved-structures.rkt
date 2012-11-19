@@ -25,7 +25,8 @@
 
 (struct: type-export
   ((name : Symbol)
-   (kind : Kind)) #:transparent)
+   (value : Type)) #:transparent)
+
 (struct: var-export
   ((name : Symbol)
    (type : type-scheme)) #:transparent)
@@ -33,8 +34,12 @@
 (struct: type-scheme ((args : (Listof (List Symbol Kind)))
                       (base : Type)) #:transparent)
 
-(define-type Type (U type-constructor type-app type-id))
+(: type->kind (Type -> Kind))
+(define (type->kind ty)
+  ;; TODO
+  (src:type-kind))
 
+(define-type Type (U type-constructor type-app type-id))
 
 (struct: type-constructor
   ((module : Symbol)
