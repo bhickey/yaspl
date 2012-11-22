@@ -1,89 +1,104 @@
-#lang racket
+#lang typed/racket
 
-(require (prefix-in lifted: "lifted-structures.rkt"))
+(require "hash.rkt"
+  (prefix-in lifted: "lifted-structures.rkt"))
 
-(struct program (expr stack heap env))
-(struct done-program (loc heap))
+(define-type Program (U running-program done-program))
+(define-type Stack (Listof bind-frame))
+(define-type Heap (HashTable Location HeapValue))
+(define-type Env (HashTable Symbol Location))
+(define-type Location Symbol)
 
-(struct heap-int (v))
-(struct heap-string (v))
-(struct heap-variant (tag fields))
-;;env is a list of locations
-(struct heap-env (values))
-(struct heap-closure (fun env))
+(struct: running-program ((expr : lifted:Expr)
+                          (stack : (Listof bind-frame))
+                          (heap : Heap)
+                          (env : Env)))
 
-(struct fun (arg-names expr))
+(struct: done-program ((loc : Location) (heap : Heap)))
 
-(struct bind-frame (id expr env))
+(define-type HeapValue (U heap-int heap-string heap-variant heap-tuple))
+(struct: heap-int ((v : Integer)))
+(struct: heap-string ((v : String)))
+(struct: heap-variant ((tag : Symbol) (fields : (Listof Location))))
+(struct: heap-tuple ((values : (Listof Location))))
+
+(struct: fun ((arg-names : (Listof Symbol))
+              (expr : lifted:Expr)))
+
+(struct: bind-frame ((id : Symbol) (expr : lifted:Expr) (env : Env)))
 
 
-(define heap-ref dict-ref)
-(define heap-add dict-set)
-(define environment-ref dict-ref)
+(define environment-ref hash-ref)
+(define heap-ref hash-ref)
+(: heap-add (Heap HeapValue -> (Values Heap Location)))
+(define (heap-add heap v)
+  (define loc (gensym 'loc))
+  (values (hash-set heap loc v) loc))
 
-
-(define (step-expr expr stack heap env)
+(: step-expr (running-program -> Program))
+(define (step-expr prog)
+  (match-define (running-program expr stack heap env) prog)
   (match expr
     ((lifted:int v)
      (define-values (new-heap loc) (heap-add heap (heap-int v)))
      (return loc stack new-heap))
-    ((lifted:string v)
+    ((lifted:str v)
      (define-values (new-heap loc) (heap-add heap (heap-string v)))
      (return loc stack new-heap))
-    ((lifted:id id _)
+    ((lifted:id id)
      (return (environment-ref env id) stack heap))
 
-    ((lifted:make-closure fun-id env-id)
+    ((lifted:inst id type)
+     (return (environment-ref env id) stack heap))
+    ((lifted:pack id type-id inner-ty outer-ty)
+     (return (environment-ref env id) stack heap))
+
+    ((lifted:make-tuple values)
      (define-values (new-heap loc)
-        (heap-add heap (heap-closure 
-                         (environment-ref env fun-id)
-                         (environment-ref env env-id))))
+        (heap-add heap (heap-tuple
+                         (for/list ((id values))
+                            (environment-ref env id)))))
      (return loc stack new-heap))
-    ((lifted:closure-env id)
-     (match-define (heap-closure fun env) (heap-ref heap (environment-ref env id)))
-     (return env stack heap))
-    ((lifted:closure-fun id)
-     (match-define (heap-closure fun env) (heap-ref heap (environment-ref env id)))
-     (return fun stack heap))
-
-
-    ((lifted:make-env ids)
-     (define-values (new-heap loc)
-        (heap-add heap (heap-env 
-                         (for/list ((id ids))
-                           (environment-ref env id)))))
-     (return loc stack new-heap))
-    ((lifted:env-ref env-id index)
-     (return (list-ref (heap-ref heap (environment-ref env env-id)) index) stack heap))
-
-    ((lifted:app-fun id args _)
-     (match-define (fun arg-names fun-body) (heap-ref heap (environment-ref env id)))
-     (define new-env
-       (for/hash ((arg args) (name arg-names))
-         (values name (environment-ref env arg))))
-     (program fun-body stack heap new-env))
-    ((lifted:case id clauses _)
+    ((lifted:tuple-ref id index)
      (define val (heap-ref heap (environment-ref env id)))
-     (handle-clauses val clauses stack heap env))
+     (if (heap-tuple? val)
+         (return (list-ref (heap-tuple-values val) index) stack heap)
+         (error 'step "Heap value was not a tuple, but tried to tuple-ref it")))
+    ((lifted:app-fun id args)
+     (define heap-val (heap-ref heap (environment-ref env id)))
+     (if (fun? heap-val)
+         (let ()
+           (match-define (fun arg-names fun-body) heap-val)
+           (define new-env
+             (for/hash: : Env ((arg args) (name arg-names))
+               (values name (environment-ref env arg))))
+           (running-program fun-body stack heap new-env))
+         (error 'step "Heap value was not a function, but tried to apply it")))
+    ((lifted:case id clauses)
+     (define loc (environment-ref env id))
+     (define val (heap-ref heap loc))
+     (handle-clauses val loc clauses stack heap env))
     ((lifted:bind id expr body)
-     (program expr (cons (bind-frame id body env) stack) heap env))))
+     (running-program expr (cons (bind-frame id body env) stack) heap env))))
 
 
+(: return (Location Stack Heap -> Program))
 (define (return loc stack heap)
   (match stack
     ((cons (bind-frame id expr env) stack)
-     (program expr stack heap (dict-set env id loc)))
+     (running-program expr stack heap (hash-set env id loc)))
     ((list)
      (done-program loc heap))))
 
-(define (handle-clauses val clauses stack heap env)
+(: handle-clauses (HeapValue Location (Listof lifted:clause) Stack Heap Env -> running-program))
+(define (handle-clauses val loc clauses stack heap env)
   (if (empty? clauses)
       (error 'handle-clauses "Clauses did not match variable")
       (match clauses
-        ((list (lifted:clause pattern expr _) clauses)
+        ((cons (lifted:clause pattern expr) clauses)
          (match pattern
           ((lifted:id-pattern id)
-           (program expr stack heap (dict-set env id val)))
+           (running-program expr stack heap (hash-set env id loc)))
           ((lifted:constructor-pattern pattern-constructor ids)
            (match val
             ((heap-variant heap-constructor fields)
@@ -92,10 +107,10 @@
                    (unless (equal? (length fields) (length ids))
                      (error 'handle-clauses "Wrong number of ids for variant"))
                    (define new-env
-                     (for/fold ((env env)) ((id ids) (val fields))
-                        (dict-set env id val)))
-                   (program expr stack heap new-env))
-                 (handle-clauses val clauses stack heap env))))))))))
+                     (for/fold: ((env : Env env)) ((id ids) (val fields))
+                        (hash-set env id val)))
+                   (running-program expr stack heap new-env))
+                 (handle-clauses val loc clauses stack heap env))))))))))
       
 
 

@@ -1,51 +1,26 @@
-#lang racket
+#lang typed/racket
 
 (provide (all-defined-out))
 
-(struct int (val))
-(struct string (val))
-(struct id (val type))
-(struct bind (id expr body))
-(struct app-fun (fun-id arg-ids type))
-(struct case (id clauses type))
-(struct make-closure (fun-id env-id))
-(struct closure-env (id))
-(struct closure-fun (id))
+(define-type Type #f)
+(define-type Expr (U bind un-pack case int str id inst app-fun make-tuple tuple-ref))
 
-(struct make-env (values))
-(struct env-ref (id index))
+(struct: bind ((id : Symbol) (expr : Expr) (body : Expr)))
+(struct: un-pack ((type-id : Symbol) (new-val-id : Symbol) (orig-val-id : Symbol) (body : Expr)))
+(struct: case ((id : Symbol) (clauses : (Listof clause))))
 
-(struct clause (pattern expr type))
-(struct id-pattern (id))
-(struct constructor-pattern (name ids))
+(struct: int ((val : Integer)))
+(struct: str ((val : String)))
+(struct: id ((val : Symbol)))
+(struct: inst ((id : Symbol) (type : Type)))
+(struct: app-fun ((fun-id : Symbol) (arg-ids : (Listof Symbol))))
+(struct: pack ((id : Symbol) (type-id : Symbol) (inner-type : Type) (outer-type : Type)))
 
-#|
-(require
-  unstable/list
-  (prefix-in typed: "typed-structures.rkt"))
+(struct: make-tuple ((values : (Listof Symbol))))
+(struct: tuple-ref ((id : Symbol) (index : Natural)))
 
-(struct: lam (arglist body type))
+(struct: clause ((pattern : Pattern) (expr : Expr)))
+(define-type Pattern (U id-pattern constructor-pattern))
+(struct: id-pattern ((id : Symbol)))
+(struct: constructor-pattern ((name : Symbol) (ids : (Listof Symbol))))
 
-
-;; old:expr -> (values lifted:expr Set[(U Symbol Type)])
-(define (lift expr)
-  (define (rlift (expr) (lift env expr)))
-  (match expr
-    ((typed:int v) (values (int v) (set)))
-    ((typed:str v) (values (str v) (set)))
-    ((typed:id v t) (values (id v t) (set (list v t))))
-    ((typed:case expr clauses type)
-      (define-values (lifted-clauses free-vars) (map2 rlift clauses))
-      (values
-        (case (rlift expr) (lifted-clauses) type)
-        (foldl set-union (set) free-vars)))
-    ((typed:clause pattern expr type)
-      (define-values (lifted-expr free-vars) (rlift expr))
-      (values (clause pattern lifted-expr type) free-vars))
-    ((typed:lam args body type)
-      (define-values (lifted-body maybe-free-vars) (rlift body))
-      (define free-vars (set-subtract maybe-free-var args))
-      (values
-        (lam (concatenate args free-vars) lifted-body type)
-        free-vars))))
-|#
