@@ -72,7 +72,7 @@
 (struct: str ((val : String)) #:transparent)
 
 (struct: id ((val : Symbol) (type : Type)) #:transparent)
-(struct: toplevel-id ((val : Symbol) (type : Type)) #:transparent)
+(struct: toplevel-id ((module : Symbol) (val : Symbol) (type : Type)) #:transparent)
 (struct: inst ((expr : Expression) (types : (Listof Type))) #:transparent)
 
 (struct: lam ((arg : Symbol) (type : Type) (body : Expression)) #:transparent)

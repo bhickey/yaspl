@@ -6,9 +6,6 @@
   (prefix-in src: "source-structures.rkt")
   (prefix-in res: "resolved-structures.rkt"))
 
-(require/typed unstable/hash
-  (hash-union (All (b) ((HashTable Symbol b) (HashTable Symbol b) * -> (HashTable Symbol b)))))
-
 (require/typed "type-inference.rkt"
   (infer-types ((Listof src:defn) (HashTable Symbol res:type-scheme) -> (HashTable Symbol res:Type))))
 
@@ -96,14 +93,18 @@
     (for/list ((import imports))
       (hash-ref module-interfaces (src:import-name import))))
 
-  (: imported-var-ids (HashTable Symbol res:id))
+  (: imported-var-ids (HashTable Symbol res:toplevel-id))
   (define imported-var-ids
-    (for*/hash: : (HashTable Symbol res:id)
+    (for*/hash: : (HashTable Symbol res:toplevel-id)
         ((interface imported-interfaces)
          (var (res:module-interface-var-exports interface)))
       (match-define (res:var-export var-name var-type) var)
       ;;TODO let variables have polymorphic types
-      (values var-name (res:id var-name bogus-type))))
+      (values var-name
+              (res:toplevel-id
+                (res:module-interface-name interface)
+                var-name
+                bogus-type))))
 
   (: imported-types (HashTable Symbol res:type-constructor))
   (define imported-types
@@ -208,9 +209,9 @@
 
   (: module-var-ids (HashTable Symbol (U res:id res:toplevel-id)))
   (define module-var-ids 
-    (let ((inject (lambda: ((sym : Symbol)) (ann (res:toplevel-id sym bogus-type) (U res:id res:toplevel-id)))))
+    (let ((inject (lambda: ((sym : Symbol)) (ann (res:toplevel-id module-name sym bogus-type) (U res:id res:toplevel-id)))))
       ;; TODO fix when TR doesn't suck so much
-      (hash-union (hash-value-map (lambda: ((id : res:id)) (ann id (U res:id res:toplevel-id)))
+      (hash-union (hash-value-map (lambda: ((id : res:toplevel-id)) (ann id (U res:id res:toplevel-id)))
                                   imported-var-ids)
                   (hash-value-map inject defined-syms)
                   (hash-value-map inject data-var-syms))))
@@ -320,7 +321,7 @@
           ((name (filter (lambda: ((name : Symbol)) (hash-has-key? module-var-ids name))
                          (map src:export-name exports))))
         (match (hash-ref module-var-ids name)
-          ((res:toplevel-id new-name type)
+          ((res:toplevel-id (== module-name) new-name type)
            (list new-name (res:var-export name bogus-type-scheme)))))))
 
 

@@ -2,6 +2,7 @@
 
 (require
   "unique.rkt"
+  "hash.rkt"
   (prefix-in res: "resolved-structures.rkt")
   (prefix-in li: "lifted-structures.rkt"))
 
@@ -14,6 +15,13 @@
 
 (: lift-module (res:module -> li:module))
 (define (lift-module mod)
+  (: mod-name Symbol)
+  (: imports (Listof Symbol))
+  (: exports res:exports)
+  (: data (Listof res:data))
+  (: defns (Listof res:defn))
+  (match-define (res:module mod-name imports exports data defns) mod)
+
 
   (: functions (HashTable Symbol li:function))
   (define functions (make-hash))
@@ -24,7 +32,7 @@
       ((res:int v) (li:int v))
       ((res:str v) (li:str v))
       ((res:id v t) (li:id v))
-      ((res:toplevel-id v t) (li:toplevel-id v))
+      ((res:toplevel-id mod v t) (li:toplevel-id mod v))
       ((res:case expr clauses _ _)
        (define case-val (unique 'case-val))
        (li:bind case-val (lift expr)
@@ -35,7 +43,7 @@
        (define local-fun-name (unique 'local-fun))
        (define env-name (unique 'env))
        (define closure-name (unique 'closure))
-       (li:bind local-fun-name (li:toplevel-id fun-name)
+       (li:bind local-fun-name (li:toplevel-id mod-name fun-name)
          (li:bind env-name (li:make-tuple free-vars)
            (li:bind closure-name (li:make-tuple (list local-fun-name env-name))
              (li:pack closure-name bogus-symbol bogus-type bogus-type)))))
@@ -102,7 +110,7 @@
       (match expr
         ((li:int _) expr)
         ((li:str _) expr)
-        ((li:toplevel-id _) expr)
+        ((li:toplevel-id _ _) expr)
         ((li:id sym) (li:id (rename sym)))
         ((li:inst sym ty) (li:inst (rename sym) ty))
         ((li:app-fun fun-id arg-ids)
@@ -143,21 +151,35 @@
 
 
 
-  (: mod-name Symbol)
-  (: imports (Listof Symbol))
-  (: exports res:exports)
-  (: data (Listof res:data))
-  (: defns (Listof res:defn))
-  (match-define (res:module mod-name imports exports data defns) mod)
 
-  (: new-defns (HashTable Symbol li:mod-function))
+  (: new-defns (HashTable Symbol li:ModValue))
   (define new-defns
-    (for/hash: : (HashTable Symbol li:mod-function)
+    (for/hash: : (HashTable Symbol li:ModValue)
         ((defn defns))
       (match-define (res:defn name _ (res:lam arg type body)) defn)
       (define-values (fun-name free-vars) (lift-fun (list arg) body))
 
       (values name (li:mod-function fun-name))))
 
+  (: new-data (HashTable Symbol li:ModValue))
+  (define new-data
+    (for*/hash: : (HashTable Symbol li:ModValue)
+        ((datum data)
+         (variant (res:data-variants datum)))
 
-  (li:module functions new-defns))
+      (match-define (res:variant name fields) variant)
+      
+      (if (empty? fields)
+          (values name (li:mod-adt-const name))
+          (error 'nyi))))
+
+  (: new-exports li:exports)
+  (define new-exports
+    (li:exports
+      (for/hash: : (HashTable Symbol Symbol)
+          ((export (res:exports-vars exports)))
+        (match-define (list inner-name (res:var-export outer-name ty)) export)
+        ;;TODO remove when TR doesn't suck so much
+        (values outer-name (cast inner-name Symbol)))))
+
+  (li:module mod-name functions (hash-union new-defns new-data) new-exports))

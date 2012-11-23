@@ -4,7 +4,8 @@
          "parser.rkt"
          "source-structures.rkt"
          "resolve-module.rkt"
-         "lift-module.rkt")
+         "lift-module.rkt"
+         (prefix-in le: "lifted-evaluator.rkt"))
 
 ;; Runtime Structures
 ;; Values
@@ -126,7 +127,15 @@
 (define bool-program2 (read-yaspl-file "yaspl/bool-prog2.ysp"))
 (define modules (list color-module bool-module))
 
-(lift-module (resolve-module bool-module (hash)))
+(define bool-lifted-program
+  (le:initialize-program
+    (lift-module (resolve-module bool-module (hash)))
+    'main 'True))
+
+(let loop ((prog bool-lifted-program))
+  (if (le:running-program? prog)
+      (loop (le:step prog))
+      prog))
 
 #;
 (define byte-interface
