@@ -206,10 +206,12 @@
                (map src:variant-name variants)
                (map convert-variant variants))))))
 
-  (: module-var-ids (HashTable Symbol res:id))
+  (: module-var-ids (HashTable Symbol (U res:id res:toplevel-id)))
   (define module-var-ids 
-    (let ((inject (lambda: ((sym : Symbol)) (res:id sym bogus-type))))
-      (hash-union imported-var-ids 
+    (let ((inject (lambda: ((sym : Symbol)) (ann (res:toplevel-id sym bogus-type) (U res:id res:toplevel-id)))))
+      ;; TODO fix when TR doesn't suck so much
+      (hash-union (hash-value-map (lambda: ((id : res:id)) (ann id (U res:id res:toplevel-id)))
+                                  imported-var-ids)
                   (hash-value-map inject defined-syms)
                   (hash-value-map inject data-var-syms))))
 
@@ -221,7 +223,7 @@
 
   (: resolve-expr (src:Expression -> res:Expression))
   (define (resolve-expr expr)
-    (define-type Env (HashTable Symbol res:id))
+    (define-type Env (HashTable Symbol (U res:id res:toplevel-id)))
     (: resolve-expr (src:Expression Env -> res:Expression))
     (define (resolve-expr expr env)
       (match expr
@@ -318,7 +320,7 @@
           ((name (filter (lambda: ((name : Symbol)) (hash-has-key? module-var-ids name))
                          (map src:export-name exports))))
         (match (hash-ref module-var-ids name)
-          ((res:id new-name type)
+          ((res:toplevel-id new-name type)
            (list new-name (res:var-export name bogus-type-scheme)))))))
 
 

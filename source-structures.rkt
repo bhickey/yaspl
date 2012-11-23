@@ -25,8 +25,8 @@
 
 ;; Kinds
 (define-type Kind (U type-kind arr-kind))
-(struct: type-kind ())
-(struct: arr-kind ((arg : Kind) (res : Kind)))
+(struct: type-kind () #:transparent)
+(struct: arr-kind ((arg : Kind) (res : Kind)) #:transparent)
 
 ;; Type Schemes
 (struct: type-scheme ((args : (Listof (List Symbol Kind)))

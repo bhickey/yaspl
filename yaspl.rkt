@@ -3,7 +3,8 @@
 (require (planet dyoo/tqueue)
          "parser.rkt"
          "source-structures.rkt"
-         "resolve-module.rkt")
+         "resolve-module.rkt"
+         "lift-module.rkt")
 
 ;; Runtime Structures
 ;; Values
@@ -119,13 +120,13 @@
       (port-count-lines! port)
       (parse-yaspl (read-syntax path port)))))
 
-(define color-module (read-yaspl-file "yaspl/color.rkt"))
+(define color-module (read-yaspl-file "yaspl/color.ysp"))
 (define bool-module (read-yaspl-file "yaspl/bool.ysp"))
 (define bool-program1 (read-yaspl-file "yaspl/bool-prog1.ysp"))
 (define bool-program2 (read-yaspl-file "yaspl/bool-prog2.ysp"))
 (define modules (list color-module bool-module))
 
-(resolve-module bool-module #f)
+(lift-module (resolve-module bool-module (hash)))
 
 #;
 (define byte-interface

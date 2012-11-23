@@ -162,6 +162,5 @@
 
 (define (infer-types defns env)
   (for/hash (((id val) (unify (generate-constraints defns env))))
-    (displayln val)
     (values id (unconvert-type (term->type val)))))
   

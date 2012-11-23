@@ -67,12 +67,13 @@
 (struct: defn ((name : Symbol) (type : type-scheme) (expr : Expression)) #:transparent)
 
 
-(define-type Expression (U int str id id lam app case))
+(define-type Expression (U int str id id toplevel-id lam app case))
 (struct: int ((val : Integer)) #:transparent)
 (struct: str ((val : String)) #:transparent)
 
-(struct: id ((val : Symbol) (type : Type)))
-(struct: inst ((expr : Expression) (types : (Listof Type))))
+(struct: id ((val : Symbol) (type : Type)) #:transparent)
+(struct: toplevel-id ((val : Symbol) (type : Type)) #:transparent)
+(struct: inst ((expr : Expression) (types : (Listof Type))) #:transparent)
 
 (struct: lam ((arg : Symbol) (type : Type) (body : Expression)) #:transparent)
 (struct: app ((fn : Expression)
