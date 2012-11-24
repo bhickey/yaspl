@@ -2,10 +2,8 @@
 
 (require 
   "parser.rkt"
-  "source-structures.rkt"
   "resolve-module.rkt"
   "lift-module.rkt"
-  "old-evaluator.rkt"
   (prefix-in le: "lifted-evaluator.rkt"))
 
 
@@ -34,26 +32,3 @@
 (run '(bool2 main) '(bool2 arg))
 
 
-
-
-
-#|
-#;
-(define byte-interface
-  (module-interface 'byte
-     (list (type-export 'bytes (type-kind)))
-     (list (var-export 'byte (id-ty 'bytes))
-           (var-export 'concat-bytes (fun-ty (id-ty 'bytes) (fun-ty (id-ty 'bytes) (id-ty 'bytes)))))))
-(define module-store (initialize-module-store modules))
-#;
-(define interfaces (hash-set (modules->module-interfaces modules) 'byte byte-interface))
-#;
-(for ((mod (list color-module bool-module bool-program1 bool-program2)))
-  (check-unbound-variables! mod interfaces))
-
-
-(interp-program module-store bool-program1)
-(interp-program module-store bool-program2)
-;; (with-input-from-file "color.rkt" read)
-;; (parse-yaspl (with-input-from-file "color.rkt" read))
-|#

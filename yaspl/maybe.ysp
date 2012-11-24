@@ -18,7 +18,7 @@
       ((nothing) -> m)
       ((just v) -> v)))
 
-  (defn isJust
+  (defn isJust (m)
     (All (v) ((Maybe v) -> v))
     (case m
       ((nothing) -> False)
