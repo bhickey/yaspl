@@ -19,7 +19,7 @@
                (params : (Listof (List Symbol Kind)))
                (variants : (Listof variant))) #:transparent)
 (struct: variant ((name : Symbol) (fields : (Listof Symbol))) #:transparent)
-(struct: defn ((name : Symbol) (expr : Expression)) #:transparent)
+(struct: defn ((name : Symbol) (type : type-scheme) (expr : Expression)) #:transparent)
 
 
 

@@ -1,6 +1,6 @@
 (module bool
  (import)
- (export not or and xor main True False)
+ (export not or and xor main True False bool)
 
  (data bool ()
   (True)

@@ -44,6 +44,12 @@
   (define loc (new-location!))
   (values (hash-set heap loc v) loc))
 
+(: run (Program -> done-program))
+(define (run prog)
+  (if (running-program? prog)
+      (run (step prog))
+      prog))
+
 (: step (running-program -> Program))
 (define (step prog)
   (match-define (running-program expr stack heap toplevel-env env) prog)
@@ -125,32 +131,38 @@
                    (running-program expr stack heap toplevel-env new-env))
                  (handle-clauses val loc clauses stack heap toplevel-env env))))))))))
       
-(: initialize-program (lifted:module Symbol Symbol -> running-program))
-(define (initialize-program mod func arg)
-  (match-define (lifted:module mod-name funs defns exports) mod)
+(: initialize-program ((Listof lifted:module)
+                       (List Symbol Symbol)
+                       (List Symbol Symbol)
+                       -> running-program))
+(define (initialize-program modules func arg)
 
   (: base-toplevel-env ToplevelEnv)
   (define base-toplevel-env
     (hash-union
-      (for/hash: : ToplevelEnv ((id (hash-keys funs)))
-        (values (list mod-name id) (new-location!)))
-      (for/hash: : ToplevelEnv ((id (hash-keys defns)))
-        (values (list mod-name id) (new-location!)))))
+      (for*/hash: : ToplevelEnv
+          ((mod modules)
+           (id (hash-keys (lifted:module-funs mod))))
+        (values (list (lifted:module-name mod) id) (new-location!)))
+      (for*/hash: : ToplevelEnv
+          ((mod modules)
+           (id (hash-keys (lifted:module-defns mod))))
+        (values (list (lifted:module-name mod) id) (new-location!)))))
 
   (: exported-toplevel-env ToplevelEnv)
   (define exported-toplevel-env
-    (let ((vars (lifted:exports-vars exports)))
-      (for/hash: : ToplevelEnv
-          ((export-key (hash-keys vars)))
-        (values (list mod-name export-key)
-                (hash-ref base-toplevel-env
-                          (list mod-name (hash-ref vars export-key)))))))
+    (for*/hash: : ToplevelEnv
+        ((mod modules)
+         (vars (in-value (lifted:exports-vars (lifted:module-exports mod))))
+         (export-key  (hash-keys vars)))
+      (values (list (lifted:module-name mod) export-key)
+              (hash-ref base-toplevel-env
+                        (list (lifted:module-name mod) (hash-ref vars export-key))))))
 
   (: toplevel-env ToplevelEnv)
   (define toplevel-env
     (hash-union base-toplevel-env exported-toplevel-env))
 
-  (: fun-heap Heap) 
   (: empty-env-location Location)
   (define empty-env-location (new-location!))
   (: empty-env-value HeapValue)
@@ -161,12 +173,19 @@
   (define initial-heap
     (hash-union
       (make-immutable-hash (list (cons empty-env-location empty-env-value)))
-      (for/hash: : Heap ((id (hash-keys funs)))
-        (values (hash-ref toplevel-env (list mod-name id))
+      (for*/hash: : Heap
+           ((mod modules)
+            (funs (in-value (lifted:module-funs mod)))
+            (id (hash-keys funs)))
+        (values (hash-ref toplevel-env (list (lifted:module-name mod) id))
           (match (hash-ref funs id)
             ((lifted:function args body)
              (fun args body)))))
-      (for/hash: : Heap ((id (hash-keys defns)))
+      (for*/hash: : Heap
+           ((mod modules)
+            (defns (in-value (lifted:module-defns mod)))
+            (id (hash-keys defns)))
+        (define mod-name (lifted:module-name mod))
         (values (hash-ref toplevel-env (list mod-name id))
                 (match (hash-ref defns id)
                   ((lifted:mod-function fun-id)
@@ -176,13 +195,13 @@
 
 
   (define closure (unique 'fun-pos))
-  (define local-arg (unique arg))
+  (define local-arg (unique (second arg)))
   (define unpacked-closure (unique 'unpacked))
-  (define local-fun (unique func))
+  (define local-fun (unique (second func)))
   (define env (unique 'env))
   (define expr
-    (lifted:bind closure (lifted:toplevel-id mod-name func)
-      (lifted:bind local-arg (lifted:toplevel-id mod-name arg)
+    (lifted:bind closure (apply lifted:toplevel-id func)
+      (lifted:bind local-arg (apply lifted:toplevel-id arg)
         (lifted:unpack (unique 'bogus) unpacked-closure closure
            (lifted:bind local-fun (lifted:tuple-ref unpacked-closure 0)
              (lifted:bind env (lifted:tuple-ref unpacked-closure 1)

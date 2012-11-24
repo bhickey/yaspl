@@ -1,0 +1,9 @@
+(module bool2
+  (import bool)
+  (export main arg)
+
+  (defn main (f) ((bool -> bool) -> bool)
+    (f True))
+
+  (defn arg (x) (bool -> bool)
+    x))

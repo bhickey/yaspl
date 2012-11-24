@@ -1,0 +1,9 @@
+(module unit
+  (import)
+  (export unit Unit)
+
+  (data unit ()
+    (Unit))
+    
+  (defn id (x) (unit -> unit) x))
+

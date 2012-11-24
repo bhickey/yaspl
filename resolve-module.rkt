@@ -3,6 +3,7 @@
 (require
   "unique.rkt"
   "hash.rkt"
+  "linearize-modules.rkt"
   (prefix-in src: "source-structures.rkt")
   (prefix-in res: "resolved-structures.rkt"))
 
@@ -10,7 +11,7 @@
   (infer-types ((Listof src:defn) (HashTable Symbol res:type-scheme) -> (HashTable Symbol res:Type))))
 
 
-(provide resolve-module)
+(provide resolve-module resolve-modules)
 
 (: hash-value-map (All (a b c) ((b -> c) (HashTable a b) -> (HashTable a c))))
 (define (hash-value-map fn hash)
@@ -68,8 +69,8 @@
                new-env))))
 
   (match defn
-    ((src:defn name expr)
-     (src:defn name (unique-expr expr (make-immutable-hash null))))))
+    ((src:defn name type expr)
+     (src:defn name type (unique-expr expr (make-immutable-hash null))))))
 
 
 (: bogus-type-scheme res:type-scheme)
@@ -163,6 +164,35 @@
   (define module-type-ids 
     (hash-union imported-types data-type-types))
 
+  (: defined-var-type-schemes (HashTable Symbol res:type-scheme))
+  (define defined-var-type-schemes
+    (let ()
+      (: convert-type (src:Type (HashTable Symbol src:Kind) -> res:Type))
+      (define (convert-type ty env)
+        (match ty
+          ((src:int-ty) res:int-type-constructor)
+          ((src:string-ty) res:string-type-constructor)
+          ((src:ty-app op arg)
+           (res:type-app (convert-type op env) (convert-type arg env)))
+          ((src:fun-ty arg res)
+           (res:type-app
+             (res:type-app res:fun-type-constructor
+                           (convert-type arg env))
+             (convert-type res env)))
+          ((src:id-ty val)
+           (hash-ref module-type-ids val
+                (lambda () (res:type-id val (hash-ref env val)))))))
+      (for/hash: : (HashTable Symbol res:type-scheme) ((defn defns))
+        (match-define (src:type-scheme params type) (src:defn-type defn))
+        (values (src:defn-name defn)
+                (res:type-scheme params
+                  (convert-type
+                    type
+                    (for/hash: : (HashTable Symbol src:Kind)
+                        ((param : (List Symbol src:Kind) params))
+                      (values (first param) (second param)))))))))
+
+
   (: data-var-type-schemes (HashTable Symbol res:type-scheme))
   (define data-var-type-schemes
     (apply hash-union (ann (make-immutable-hash empty) (HashTable Symbol res:type-scheme))
@@ -219,7 +249,9 @@
 
 
   (: substitution (HashTable Symbol res:Type))
-  (define substitution (infer-types defns data-var-type-schemes))
+  (define substitution (infer-types defns (hash-union
+                                            defined-var-type-schemes
+                                            data-var-type-schemes)))
 
 
   (: resolve-expr (src:Expression -> res:Expression))
@@ -279,7 +311,7 @@
   (: new-defns (Listof res:defn))
   (define new-defns
     (for/list ((defn defns))
-      (match-define (src:defn name expr) defn)
+      (match-define (src:defn name ty expr) defn)
       (res:defn (hash-ref defined-syms name) bogus-type-scheme (resolve-expr expr))))
 
   (: new-datas (Listof res:data))
@@ -331,6 +363,17 @@
 
   (res:module module-name new-imports new-exports new-datas new-defns))
 
+(: resolve-modules ((Listof src:module) -> (Listof res:module)))
+(define (resolve-modules mods)
+  (define linear-mods (linearize-modules mods))
+  (: interfaces res:module-interfaces)
+  (define interfaces (make-hash))
+  (for/list ((mod linear-mods))
+    (define res-mod
+      (resolve-module mod interfaces))
+    (hash-set! interfaces (src:module-name mod)
+               (res:module->module-interface res-mod))
+    res-mod))
 
 
 

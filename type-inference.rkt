@@ -48,7 +48,7 @@
     (ty-app (convert-type op env)
             (convert-type arg env)))
    ((res:type-constructor _ _ _) (const-ty t))
-   ((res:type-id id _) (dict-ref id env))))
+   ((res:type-id id _) (dict-ref env id))))
 
 (define (convert-type-scheme t)
   (match t
@@ -157,7 +157,7 @@
         (binding-constraint name scheme))
       (for/list ((def defns))
         (match def
-          ((defn name expr)
+          ((defn name type expr)
            (generate-constraints expr (identifier-term name))))))))
 
 (define (infer-types defns env)

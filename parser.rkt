@@ -44,6 +44,7 @@
   (pattern ((~datum defn) name:symbol (args:symbol ...) ty:type-scheme e:expr)
            #:attr v (src:defn
                       (attribute name.v)
+                      (attribute ty.v)
                       (src:lam* (attribute args.v)
                                 (attribute e.v)))))
 (define-syntax-class kind
