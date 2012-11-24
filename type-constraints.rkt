@@ -1,43 +1,15 @@
 #lang racket
 
-(require "unique.rkt")
+(require "unique.rkt"
+         "type-constraint-structures.rkt")
 
-(provide
-  (contract-out
-    (struct expr-constraint ((left term/c) (right term/c)))
-    (struct ty-abs ((names (listof symbol?)) (body type/c)))
-    (struct const-ty ((val any/c)))))
 
 (provide
   unify
-  term/c
   type->term
-  term->type
-  (struct-out binding-constraint)
-  (struct-out ty-app)
-  (struct-out ty-var)
-  (struct-out unification-term)
-  (struct-out identifier-term)
-  (struct-out const-term)
-  (struct-out app-term))
-
-(struct expr-constraint (left right) #:transparent)
-(struct binding-constraint (id type) #:transparent)
-
-(struct ty-abs (names body) #:transparent)
-(struct ty-app (op arg) #:transparent)
-(struct const-ty (val) #:transparent)
-(struct ty-var (name) #:transparent)
-
-(define type/c (or/c ty-app? const-ty? ty-var?))
+  term->type)
 
 
-(struct unification-term (name) #:transparent)
-(struct identifier-term (id) #:transparent)
-(struct const-term (val)  #:transparent)
-(struct app-term (op arg)  #:transparent)
-
-(define term/c (or/c unification-term? identifier-term? const-term? app-term?))
 
 
 (define (type->term t)
@@ -51,7 +23,8 @@
   (match t
     ((app-term op arg)
      (ty-app (term->type op) (term->type arg)))
-    ((const-term v) (const-ty v))))
+    ((const-term v) (const-ty v))
+    ((unification-term n) (ty-var n))))
 
 
 
@@ -137,18 +110,25 @@
     (match const
      ((expr-constraint v v)
       (values constraints subs))
-     ((expr-constraint (and left (unification-term id)) right)
-      (occurs-check! id right)
-      (substitute right left constraints subs))
-     ((expr-constraint left (and right (unification-term id)))
-      (occurs-check! id left)
-      (substitute left right constraints subs))
+     ((expr-constraint (and left (identifier-term id-left))
+                       (and right (identifier-term id-right)))
+      (define fresh (unification-term (unique 'same-id)))
+
+      (let-values (((constrainst subs)
+                    (substitute fresh left constraints (dict-set subs id-left fresh))))
+        (substitute fresh right constraints (dict-set subs id-right fresh))))
      ((expr-constraint (and left (identifier-term id)) right)
       (occurs-check! id right)
       (substitute right left constraints (dict-set subs id right)))
      ((expr-constraint left (and right (identifier-term id)))
       (occurs-check! id left)
       (substitute left right constraints (dict-set subs id left)))
+     ((expr-constraint (and left (unification-term id)) right)
+      (occurs-check! id right)
+      (substitute right left constraints subs))
+     ((expr-constraint left (and right (unification-term id)))
+      (occurs-check! id left)
+      (substitute left right constraints subs))
      ((expr-constraint (app-term left-op left-arg) (app-term right-op right-arg))
       (values
         (list* (expr-constraint left-op right-op) (expr-constraint left-arg right-arg) constraints)

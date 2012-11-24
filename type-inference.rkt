@@ -6,6 +6,7 @@
   "unique.rkt"
   (prefix-in res: "resolved-structures.rkt")
   (rename-in "source-structures.rkt"
+    (Type src:Type)
     (int-ty src:int-ty)
     (string-ty src:string-ty)
     (id-ty src:id-ty)
@@ -15,22 +16,11 @@
     (ty-app-arg src:ty-app-arg)
     (struct:ty-app src:struct:ty-app)
     (fun-ty src:fun-ty))
+  "type-constraint-structures.rkt"
   "type-constraints.rkt")
 
-#|
-(define int-constructor (unique 'int))
-(define string-constructor (unique 'string))
-(define fun-constructor (unique 'function))
+(define-logger inference)
 
-(define int-ty-constraint (const-term int-constructor))
-(define int-ty (const-ty int-constructor))
-(define string-ty-constraint (const-term string-constructor))
-(define string-ty (const-ty string-constructor))
-(define (fun-ty arg res)
-  (ty-app
-    (ty-app (const-ty fun-constructor)
-            arg) res))
-|#
 (define int-constraint (const-term res:int-type-constructor))
 (define string-constraint (const-term res:string-type-constructor))
 
@@ -42,7 +32,8 @@
     res))
 
 
-(define (convert-type t env)
+(define/contract (convert-type t env)
+  (res:type/c (hash/c symbol? type/c) . -> . type/c)
   (match t
    ((res:type-app op arg)
     (ty-app (convert-type op env)
@@ -66,6 +57,8 @@
     (res:type-app
       (unconvert-type op)
       (unconvert-type arg)))
+   ;;TODO this is likely wrong
+   ((ty-var id) (res:type-id id (type-kind)))
    ((const-ty t) t)))
 
 
@@ -83,7 +76,7 @@
       (dict-ref full-env constructor))
     (define env
       (for/hash ((arg poly-names))
-        (values arg (unification-term (unique arg)))))
+        (values arg (ty-var (unique arg)))))
     (define (convert t) (type->term (convert-type t env)))
 
     (define (linearize-fun-type t)
@@ -100,7 +93,8 @@
     (values (convert res-type) (map convert arg-types)))
 
 
-  (define (generate-constraints expr name)
+  (define/contract (generate-constraints expr name)
+    (expression/c (or/c unification-term? identifier-term?) . -> . (set/c expr-constraint?))
     (match expr
       ((int _) (set (expr-constraint name int-constraint)))
       ((str _) (set (expr-constraint name string-constraint)))
@@ -141,14 +135,14 @@
       ((identifier-pattern id) (set (expr-constraint name (identifier-term id))))
       ((wildcard-pattern) (set))
       ((constructor-pattern constructor args)
-       (define arg-names (map (lambda (_) (unique 'pat-arg)) args))
+       (define arg-names (map (lambda (_) (unification-term (unique 'pat-arg))) args))
        (define-values (pat-term arg-terms)
           (get-constructor-constraints constructor))
        (set-add
          (apply set-union*
            (append
-             (map generate-constraints args arg-names)
-             (map expr-constraint arg-names arg-terms)))
+             (map generate-pattern-constraints args arg-names)
+             (map set (map expr-constraint arg-names arg-terms))))
          (expr-constraint name pat-term)))))
 
   (apply set-union*
@@ -161,6 +155,11 @@
            (generate-constraints expr (identifier-term name))))))))
 
 (define (infer-types defns env)
-  (for/hash (((id val) (unify (generate-constraints defns env))))
+  (define constraints (generate-constraints defns env))
+  (log-inference-info "Constraints are:~n~v" constraints)
+  (define substitution (unify constraints))
+  (log-inference-info "Substitution is:~n~v" substitution)
+
+  (for/hash (((id val) substitution))
     (values id (unconvert-type (term->type val)))))
   

@@ -1,10 +1,10 @@
 (module maybe
   (import bool)
-  (export maybe fromMaybe isJust)
+  (export maybe fromMaybe isJust nothing just Maybe main)
 
-  (data Maybe (v)
+  (data Maybe (x)
     (nothing)
-    (just v))
+    (just x))
 
   (defn maybe (d fn m)
     (All (a b) (b -> (a -> b) -> (Maybe a) -> b))
@@ -15,12 +15,16 @@
   (defn fromMaybe (d m)
     (All (v) (v -> (Maybe v) -> v))
     (case m
-      ((nothing) -> m)
+      ((nothing) -> d)
       ((just v) -> v)))
 
   (defn isJust (m)
     (All (v) ((Maybe v) -> v))
     (case m
       ((nothing) -> False)
-      ((just _) -> True))))
+      ((just x) -> True)))
+      
+  (defn main (b)
+    (bool -> (Maybe (Maybe bool)))
+    (just (just b))))
 

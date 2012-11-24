@@ -40,6 +40,7 @@
   (src:type-kind))
 
 (define-type Type (U type-constructor type-app type-id))
+(define-predicate type/c Type)
 
 (struct: type-constructor
   ((module : Symbol)
@@ -67,7 +68,7 @@
 (struct: defn ((name : Symbol) (type : type-scheme) (expr : Expression)) #:transparent)
 
 
-(define-type Expression (U int str id id toplevel-id lam app case))
+(define-type Expression (U int str id id toplevel-id lam app case make-variant))
 (struct: int ((val : Integer)) #:transparent)
 (struct: str ((val : String)) #:transparent)
 
@@ -87,6 +88,7 @@
                  (expr : Expression)
                  (pattern-type : Type)
                  (return-type : Type)) #:transparent)
+(struct: make-variant ((name : Symbol) (args : (Listof Expression))))
 
 (define-type Pattern (U number-pattern string-pattern identifier-pattern wildcard-pattern constructor-pattern))
 ;; Patterns

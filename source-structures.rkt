@@ -41,6 +41,7 @@
 (struct: id-ty ((val : Symbol)))
 
 (define-type Expression (U int str id lam app case))
+(define-predicate expression/c Expression)
 ;; Expressions
 (struct: int ((val : Integer)) #:transparent)
 (struct: str ((val : String)) #:transparent)

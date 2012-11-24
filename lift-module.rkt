@@ -59,7 +59,12 @@
               (li:bind fun (li:tuple-ref unpacked-closure 0)
                 (li:bind env (li:tuple-ref unpacked-closure 1)
                   (li:app-fun fun (list env arg))))))))
-      
+      ((res:make-variant name args)
+       (define arg-names (map (lambda (a) (unique 'arg)) args))
+       (for/fold: ((base : li:Expr (li:make-variant name arg-names)))
+                  ((arg-name (reverse arg-names))
+                   (arg (reverse args)))
+         (li:bind arg-name (lift arg) base)))
       ))
 
   (: lift-clause (res:clause -> li:clause))
@@ -121,6 +126,8 @@
          (li:make-tuple (map rename ids)))
         ((li:tuple-ref id index)
          (li:tuple-ref (rename id) index))
+        ((li:make-variant name ids)
+         (li:make-variant name (map rename ids)))
         ((li:bind id expr body)
          (li:bind id
             (recur expr ignore)
@@ -158,6 +165,7 @@
         ((defn defns))
       (match-define (res:defn name _ (res:lam arg type body)) defn)
       (define-values (fun-name free-vars) (lift-fun (list arg) body))
+      (assert free-vars null?)
 
       (values name (li:mod-function fun-name))))
 
@@ -171,7 +179,20 @@
       
       (if (empty? fields)
           (values name (li:mod-adt-const name))
-          (error 'nyi))))
+          (let ()
+            (define field-args (map (lambda (f) (unique 'field)) fields))
+
+            (define body
+              (for/fold: ((expr : res:Expression (res:make-variant name (map res:id field-args fields))))
+                         ((arg (reverse (rest field-args)))
+                          (type (reverse (rest fields))))
+                (res:lam arg type expr)))
+            (define-values (fun-name free-vars) (lift-fun (list (first field-args)) body))
+            (assert free-vars null?)
+
+            (values name (li:mod-function fun-name))))))
+
+
 
   (: new-exports li:exports)
   (define new-exports

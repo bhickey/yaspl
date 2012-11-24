@@ -20,7 +20,7 @@
 
 (define-type Type #f)
 (define-type Expr (U bind unpack case int str id toplevel-id inst app-fun pack
-                     make-tuple tuple-ref make-adt))
+                     make-tuple tuple-ref make-variant))
 
 (struct: bind ((id : Symbol) (expr : Expr) (body : Expr)) #:transparent)
 (struct: unpack ((type-id : Symbol) (new-val-id : Symbol) (orig-val-id : Symbol) (body : Expr)) #:transparent)
@@ -37,7 +37,7 @@
 (struct: make-tuple ((values : (Listof Symbol))) #:transparent)
 (struct: tuple-ref ((id : Symbol) (index : Natural)) #:transparent)
 
-(struct: make-adt ((name : Symbol) (args : Symbol)))
+(struct: make-variant ((name : Symbol) (args : (Listof Symbol))) #:transparent)
 
 (struct: clause ((pattern : Pattern) (expr : Expr)) #:transparent)
 (define-type Pattern (U id-pattern constructor-pattern))
