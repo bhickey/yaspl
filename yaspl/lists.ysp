@@ -1,0 +1,9 @@
+(module lists
+  (import bool list)
+  (export app-to-bool-list)
+
+  (defn app-to-bool-list (f)
+    (All (a) (((List bool) -> a) -> a))
+    (f (cons True (cons False (cons True (cons False null))))))
+
+)

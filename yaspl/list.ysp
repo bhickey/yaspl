@@ -1,45 +1,48 @@
 (module list
   (import bool)
-  (export emptyList listOf cons reverse foldl map filter)
+  (export null cons List single reverse)
 
-  (data list (t)
-    (emptyList)
-    (listOf t (list t)))
+  (data List (t)
+    (null)
+    (cons t (List t)))
 
-  (defn cons (e i)
-    (All (v) (v -> list v -> list v))
-    (listOf e i))
+  (defn single (x) (All (a) (a -> (List a)))
+    (cons x null))
 
-  (defn reverse' (i acc)
-    (All (a) (list a -> list a -> list a))
+  (defn reverse-inner (i acc)
+    (All (a) ((List a) -> (List a) -> (List a)))
     (case i
-      ((emptyList) -> acc)
-      ((listOf e rest) -> rev rest (cons e acc))))
-  
+      ((null) -> acc)
+      ((cons e rest) -> (reverse-inner rest (cons e acc)))))
+
   (defn reverse (i)
-    (All (a) (list a -> list a))
-    (reverse' i emptyList))
+    (All (a) ((List a) -> (List a)))
+    (reverse-inner i null))
 
-  (defn foldl (fn i acc)
-    (All (a b) ((a -> b -> a) -> a -> list b -> a))
-    (case i
-      ((emptyList) -> acc)
-      ((listOf e rest) -> (foldl fn rest (fn e acc)))))
+  (defn foldl (fn acc l)
+    (All (a b) ((a -> b -> a) -> a -> (List b) -> a))
+    (case l
+      ((null) -> acc)
+      ((cons e rest) -> (foldl fn (fn acc e) rest))))
 
-  (defn map (f i)
-    (All (a b) ((a -> b) -> list a -> list b))
-    (reverse 
-      (foldl 
-        (lambda (e acc) 
-          (cons (f e) acc))
-        i emptyList)))
+  (defn foldr (fn acc l)
+    (All (a b) ((a -> b -> b) -> b -> (List a) -> b))
+    (case l
+      ((null) -> acc)
+      ((cons e rest) -> (fn e (foldr fn acc rest)))))
 
-  (defn filter (f i)
-    (All (a) ((a -> bool) -> list a -> list a))
-    (reverse (foldl
-        (lambda (e acc)
-          (case (f e)
-            ((True) -> (cons e acc))
-            ((False) -> acc)))
-        i emptyList)))
-)
+  (defn map (f l)
+    (All (a b) ((a -> b) -> (List a) -> (List b)))
+    (foldr
+      (lambda (e acc)
+        (cons (f e) acc))
+      null l))
+#;
+  (defn filter (f l)
+    (All (a) ((a -> bool) -> (List a) -> (List a)))
+    (foldr
+      (lambda (e acc)
+        (case (f e)
+          ((True) -> (cons e acc))
+          ((False) -> acc)))
+        i null)))

@@ -33,15 +33,15 @@
            #:attr v (syntax-e #'sym)))
 
 (define-syntax-class imports
-  (pattern ((~datum import) s:symbol ...)
+  (pattern ((~datum import) ~! s:symbol ...)
            #:attr v (map src:import (attribute s.v))))
 
 (define-syntax-class exports
-  (pattern ((~datum export) s:symbol ...)
+  (pattern ((~datum export) ~! s:symbol ...)
            #:attr v (map src:export (attribute s.v))))
 
 (define-syntax-class defn
-  (pattern ((~datum defn) name:symbol (args:symbol ...) ty:type-scheme e:expr)
+  (pattern ((~datum defn) ~! name:symbol (args:symbol ...) ty:type-scheme e:expr)
            #:attr v (src:defn
                       (attribute name.v)
                       (attribute ty.v)
@@ -78,14 +78,14 @@
            #:attr v (src:id-ty (attribute id.v))))
 
 (define-syntax-class data
-  (pattern ((~datum data) name:symbol (params:kind-variable ...) var:variant ...)
+  (pattern ((~datum data) ~! name:symbol (params:kind-variable ...) var:variant ...)
            #:attr v (src:data
                       (attribute name.v)
                       (map list (attribute params.name) (attribute params.kind))
                       (attribute var.v))))
 
 (define-syntax-class variant
-  (pattern (name:symbol fields:symbol ...)
+  (pattern (name:symbol fields:type ...)
            #:attr v (src:variant
                       (attribute name.v)
                       (attribute fields.v))))

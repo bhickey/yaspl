@@ -48,7 +48,7 @@
 (define (run prog)
   (if (running-program? prog)
       (run (step prog))
-      prog))
+      (gc-prog prog)))
 
 (: step (running-program -> Program))
 (define (step prog)
@@ -134,6 +134,34 @@
                         (hash-set env id val)))
                    (running-program expr stack heap toplevel-env new-env))
                  (handle-clauses val loc clauses stack heap toplevel-env env))))))))))
+
+(: gc ((Listof Location) Heap -> Heap))
+(define (gc initial-roots heap)
+  (let: loop : Heap
+      ((to-look : (Listof Location) initial-roots)
+       (to-save : (Setof Location) (set)))
+    (if (empty? to-look)
+        (for/hash: : Heap
+            ;; TODO remove when TR doesn't suck so much
+            ((loc (set->list to-save)))
+          (values loc (hash-ref heap loc)))
+        (let ((loc (first to-look))
+              (to-look (rest to-look)))
+          (if (set-member? to-save loc)
+              (loop to-look to-save)
+              (let ((to-save (set-add to-save loc)))
+                (match (hash-ref heap loc)
+                 ((heap-int v) (loop to-look to-save))
+                 ((heap-string v) (loop to-look to-save))
+                 ((fun args body) (loop to-look to-save))
+                 ((heap-variant name locs) (loop (append locs to-look) to-save))
+                 ((heap-tuple locs) (loop (append locs to-look) to-save)))))))))
+
+(: gc-prog (done-program -> done-program))
+(define (gc-prog prog)
+  (match prog
+    ((done-program loc heap)
+     (done-program loc (gc (list loc) heap)))))
       
 (: initialize-program ((Listof lifted:module)
                        (List Symbol Symbol)

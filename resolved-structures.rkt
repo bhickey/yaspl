@@ -9,7 +9,8 @@
 (struct: module-interface
          ((name : Symbol)
           (type-exports : (Listof type-export))
-          (var-exports : (Listof var-export))))
+          (var-exports : (Listof var-export))
+          (pattern-exports : (Listof pattern-export))))
 
 
 (struct: module
@@ -19,9 +20,11 @@
    (data : (Listof data))
    (defn : (Listof defn))) #:transparent)
 
+;; Symbol value is the internal renamed symbol
 (struct: exports
   ((types : (Listof (List Symbol type-export)))
-   (vars : (Listof (List Symbol var-export)))) #:transparent)
+   (vars : (Listof (List Symbol var-export)))
+   (patterns : (Listof (List Symbol pattern-export)))) #:transparent)
 
 (struct: type-export
   ((name : Symbol)
@@ -30,6 +33,13 @@
 (struct: var-export
   ((name : Symbol)
    (type : type-scheme)) #:transparent)
+
+(struct: pattern-export
+  ((name : Symbol)
+   (params : (Listof Symbol))
+   (args : (Listof Type))
+   (type : Type)) #:transparent)
+
 
 (struct: type-scheme ((args : (Listof (List Symbol Kind)))
                       (base : Type)) #:transparent)
@@ -105,12 +115,12 @@
 (define (module->module-interface mod)
   (match (module-exports mod)
     ((exports (list (list _ #{types : (Listof type-export)}) ...)
-              (list (list _ #{vars : (Listof var-export)}) ...))
-     (module-interface (module-name mod) types vars))))
+              (list (list _ #{vars : (Listof var-export)}) ...)
+              (list (list _ #{patterns : (Listof pattern-export)}) ...))
+     (module-interface (module-name mod) types vars patterns))))
 
 (: modules->module-interfaces ((Listof module) -> module-interfaces))
 (define (modules->module-interfaces mods)
-  (make-immutable-hash
-    (for/list: : (Listof (Pair Symbol module-interface)) ((mod mods))
-      (cons (module-name mod) (module->module-interface mod)))))
+  (for/hash: : module-interfaces ((mod mods))
+    (values (module-name mod) (module->module-interface mod))))
 

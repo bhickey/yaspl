@@ -1,22 +1,18 @@
 ;; Natural numbers
-(module natural
+(module nat
   (import)
-  (export + compare zero successor)
+  (export Nat zero succ main)
   
-  (data Natural
-        (Nat Int))
+  (data Nat ()
+   (zero)
+   (succ Nat))
   
-  (defn zero ()
-    (Nat 0))
-  
-  (defn successor (n)
-    (case n
-      ((Nat n) -> (Nat (inc n)))))
-  
-  (defn compare (x y)
-    (case (x,y)
-      ((Nat n), (Nat m)) -> (compare n m)))
-  
-  (defn + (x y)
-    (case (x,y)
-      ((Nat n), (Nat m)) -> (Nat (+ n m)))))
+  (defn add (x y) (Nat -> Nat -> Nat)
+    (case y
+      ((zero) -> x)
+      ((succ z) -> (succ (add x z)))))
+
+  (defn main (arg) (Nat -> Nat)
+    (add (add arg (succ zero)) (succ (succ arg))))
+
+)
