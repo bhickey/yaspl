@@ -82,7 +82,7 @@
      (define val (heap-ref heap (environment-ref env id)))
      (if (heap-tuple? val)
          (return (list-ref (heap-tuple-values val) index) stack heap toplevel-env)
-         (error 'step "Heap value was not a tuple, but tried to tuple-ref it")))
+         (error 'step "Heap value was not a tuple, but tried to tuple-ref it ~a" val)))
     ((lifted:make-variant name args)
      (define-values (new-heap loc)
        (heap-add heap (heap-variant name (for/list ((arg args)) (environment-ref env arg)))))
@@ -115,25 +115,27 @@
 
 (: handle-clauses (HeapValue Location (Listof lifted:clause) Stack Heap ToplevelEnv Env -> running-program))
 (define (handle-clauses val loc clauses stack heap toplevel-env env)
-  (if (empty? clauses)
-      (error 'handle-clauses "Clauses did not match variable")
-      (match clauses
-        ((cons (lifted:clause pattern expr) clauses)
-         (match pattern
-          ((lifted:id-pattern id)
-           (running-program expr stack heap toplevel-env (hash-set env id loc)))
-          ((lifted:constructor-pattern pattern-constructor ids)
-           (match val
-            ((heap-variant heap-constructor fields)
-             (if (equal? pattern-constructor heap-constructor)
-                 (let ()
-                   (unless (equal? (length fields) (length ids))
-                     (error 'handle-clauses "Wrong number of ids for variant"))
-                   (define new-env
-                     (for/fold: ((env : Env env)) ((id ids) (val fields))
-                        (hash-set env id val)))
-                   (running-program expr stack heap toplevel-env new-env))
-                 (handle-clauses val loc clauses stack heap toplevel-env env))))))))))
+  (let loop ((remaining-clauses clauses))
+    (if (empty? remaining-clauses)
+        (error 'handle-clauses "Patterns did not match value: ~a ~a"
+               (map lifted:clause-pattern clauses) val)
+        (match remaining-clauses
+          ((cons (lifted:clause pattern expr) clauses)
+           (match pattern
+            ((lifted:id-pattern id)
+             (running-program expr stack heap toplevel-env (hash-set env id loc)))
+            ((lifted:constructor-pattern (lifted:variant pattern-constructor) ids)
+             (match val
+              ((heap-variant heap-constructor fields)
+               (if (equal? pattern-constructor heap-constructor)
+                   (let ()
+                     (unless (equal? (length fields) (length ids))
+                       (error 'handle-clauses "Wrong number of ids for variant"))
+                     (define new-env
+                       (for/fold: ((env : Env env)) ((id ids) (val fields))
+                          (hash-set env id val)))
+                     (running-program expr stack heap toplevel-env new-env))
+                   (loop clauses)))))))))))
 
 (: gc ((Listof Location) Heap -> Heap))
 (define (gc initial-roots heap)

@@ -128,25 +128,41 @@
       (match-define (res:type-export type-name value) type)
       (values type-name (res:type-constructor mod-name type-name (res:type->kind value)))))
 
+  (: imported-patterns (HashTable Symbol res:variant))
+  (define imported-patterns
+    (for*/hash: : (HashTable Symbol res:variant)
+        ((interface imported-interfaces)
+         (export (res:module-interface-pattern-exports interface)))
+      (match-define (res:pattern-export name desc) export)
+      (values name desc)))
+
+  (: rename (Symbol -> (values Symbol Symbol)))
+  ( define (rename v) (values v (unique v)))
 
   (: defined-syms (HashTable Symbol Symbol))
   (define defined-syms
-    (make-immutable-hash
-      (for/list: : (Listof (Pair Symbol Symbol))
-          ((defn defns))
-        (define name (src:defn-name defn))
-        (cons name (unique name)))))
+    (for*/hash: : (HashTable Symbol Symbol)
+        ((defn defns))
+       (rename (src:defn-name defn))))
 
   (: data-var-syms (HashTable Symbol Symbol))
   (define data-var-syms
-    (for*/fold: ((env : (HashTable Symbol Symbol)
-                      (ann (make-immutable-hash null)
-                           (HashTable Symbol Symbol))))
-                ((data : src:data datas)
-                 (variant : src:variant (src:data-variants data)))
-      (define name (src:variant-name variant))
-      (hash-set env name (unique name))))
+    (for*/hash: : (HashTable Symbol Symbol)
+        ((data datas)
+         (variant (src:data-variants data)))
+      (rename (src:variant-name variant))))
 
+  (: data-variants (HashTable Symbol res:variant))
+  (define data-variants
+    (for*/hash: : (HashTable Symbol res:variant)
+        ((data datas)
+         (variant (src:data-variants data)))
+      (match-define (src:variant name fields) variant)
+      ;; TODO fix this to not be wrong
+      (values name
+        (res:variant
+          (hash-ref data-var-syms name)
+            null (map (const bogus-type) fields) bogus-type))))
 
   (: data-type-syms (HashTable Symbol Symbol))
   (define data-type-syms
@@ -319,7 +335,7 @@
              (define-values (new-arg new-env)
                (resolve-pattern arg env))
              (values (cons new-arg new-args) new-env)))
-         (values (res:constructor-pattern (hash-ref data-var-syms name) (reverse new-args))
+         (values (res:constructor-pattern (hash-ref data-variants name) (reverse new-args))
                  new-env))))
     (resolve-expr expr module-var-ids))
 
@@ -353,13 +369,13 @@
       (define (resolve-variant variant)
         (match variant
           ((src:variant name fields)
+           (hash-ref data-variants name)
+           #;
            (res:variant
              (hash-ref data-var-syms name)
              (for/list: : (Listof res:Type) ((field : src:Type fields))
                (convert-type (rename-type field new-params-map) new-env))))))
-      (: Pair (Symbol src:Kind -> (List Symbol src:Kind)))
-      (define (Pair a b) (list a b))
-      (res:data new-name (map Pair new-param-names param-kinds) (map resolve-variant variants))))
+      (res:data new-name (map resolve-variant variants))))
 
   (: new-exports res:exports)
   (define new-exports

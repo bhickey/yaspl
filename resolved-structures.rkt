@@ -36,9 +36,8 @@
 
 (struct: pattern-export
   ((name : Symbol)
-   (params : (Listof Symbol))
-   (args : (Listof Type))
-   (type : Type)) #:transparent)
+   (pattern : variant)) #:transparent)
+
 
 
 (struct: type-scheme ((args : (Listof (List Symbol Kind)))
@@ -71,9 +70,13 @@
 
 
 (struct: data ((name : Symbol)
-               (params : (Listof (List Symbol Kind)))
                (variants : (Listof variant))) #:transparent)
-(struct: variant ((name : Symbol) (fields : (Listof Type))) #:transparent)
+(struct: variant
+  ((name : Symbol)
+   (params : (Listof Symbol))
+   (args : (Listof Type))
+   (type : Type)) #:transparent)
+
 
 (struct: defn ((name : Symbol) (type : type-scheme) (expr : Expression)) #:transparent)
 
@@ -106,7 +109,7 @@
 (struct: string-pattern ((val : String)) #:transparent)
 (struct: identifier-pattern ((sym : Symbol)) #:transparent)
 (struct: wildcard-pattern () #:transparent)
-(struct: constructor-pattern ((constructor : Symbol) (args : (Listof Pattern))) #:transparent)
+(struct: constructor-pattern ((variant : variant) (args : (Listof Pattern))) #:transparent)
 
 
 

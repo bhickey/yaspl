@@ -77,9 +77,12 @@
   (define (lift-pattern pattern)
     (match pattern
       ((res:identifier-pattern sym) (li:id-pattern sym))
-      ((res:constructor-pattern name (list (res:identifier-pattern ids) ...))
+      ((res:constructor-pattern (res:variant name params args type)
+                                (list (res:identifier-pattern ids) ...))
        ;;TODO remove cast when TR doesn't suck so much
-       (li:constructor-pattern name (cast ids (Listof Symbol))))))
+       (li:constructor-pattern
+         (li:variant name)
+         (cast ids (Listof Symbol))))))
 
 
   (: lift-fun ((Listof Symbol) res:Expression -> (values Symbol (Listof Symbol))))
@@ -175,7 +178,7 @@
         ((datum data)
          (variant (res:data-variants datum)))
 
-      (match-define (res:variant name fields) variant)
+      (match-define (res:variant name params fields type) variant)
       
       (if (empty? fields)
           (values name (li:mod-adt-const name))

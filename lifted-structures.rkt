@@ -40,7 +40,10 @@
 (struct: make-variant ((name : Symbol) (args : (Listof Symbol))) #:transparent)
 
 (struct: clause ((pattern : Pattern) (expr : Expr)) #:transparent)
+
+(struct: variant ((name : Symbol)) #:transparent)
 (define-type Pattern (U id-pattern constructor-pattern))
 (struct: id-pattern ((id : Symbol)) #:transparent)
-(struct: constructor-pattern ((name : Symbol) (ids : (Listof Symbol))) #:transparent)
+(struct: constructor-pattern ((name : variant)
+                              (ids : (Listof Symbol))) #:transparent)
 
