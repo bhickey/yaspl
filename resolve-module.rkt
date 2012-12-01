@@ -152,17 +152,6 @@
          (variant (src:data-variants data)))
       (rename (src:variant-name variant))))
 
-  (: data-variants (HashTable Symbol res:variant))
-  (define data-variants
-    (for*/hash: : (HashTable Symbol res:variant)
-        ((data datas)
-         (variant (src:data-variants data)))
-      (match-define (src:variant name fields) variant)
-      ;; TODO fix this to not be wrong
-      (values name
-        (res:variant
-          (hash-ref data-var-syms name)
-            null (map (const bogus-type) fields) bogus-type))))
 
   (: data-type-syms (HashTable Symbol Symbol))
   (define data-type-syms
@@ -174,18 +163,17 @@
 
   (: data-type-types (HashTable Symbol res:type-constructor))
   (define data-type-types
-    (make-immutable-hash
-      (for/list: : (Listof (Pair Symbol res:type-constructor))
-          ((data datas))
-        (match data
-          ((src:data name params _)
-           (cons name
-             (res:type-constructor
-               module-name
-               (hash-ref data-type-syms name)
-               (for/fold: ((kind : src:Kind (src:type-kind)))
-                          ((arg : (List Symbol src:Kind) (reverse params)))
-                 (src:arr-kind (second arg) kind)))))))))
+    (for/hash: : (HashTable Symbol res:type-constructor)
+        ((data datas))
+      (match-define (src:data name params _) data)
+      (values
+        name
+        (res:type-constructor
+          module-name
+          (hash-ref data-type-syms name)
+          (for/fold: ((kind : src:Kind (src:type-kind)))
+                     ((arg : (List Symbol src:Kind) (reverse params)))
+            (src:arr-kind (second arg) kind))))))
 
 
   (: module-type-ids (HashTable Symbol res:type-constructor))
@@ -207,6 +195,52 @@
       ((src:id-ty val)
        (hash-ref module-type-ids val
             (lambda () (res:type-id val (hash-ref env val)))))))
+
+  (: new-datas (Listof res:data))
+  (define new-datas
+    (for/list: ((data : src:data datas))
+      (match-define (src:data name params variants) data)
+      (define param-names (map (inst first Symbol Any) params))
+      (define param-kinds (map (inst second Symbol src:Kind Null) params))
+
+      (define (resolve-variant variant)
+        (match variant
+          ((src:variant var-name fields)
+           (define new-param-names (map unique param-names))
+           (define new-params-map
+             (make-immutable-hash (map (inst cons Symbol Symbol) param-names new-param-names)))
+           (define env
+             (for/hash: : (HashTable Symbol src:Kind)
+                        ((new-param-name new-param-names)
+                         (param-kind param-kinds))
+               (values new-param-name param-kind)))
+
+           (: convert-field (src:Type -> res:Type))
+           (define (convert-field ty)
+             (convert-type (rename-type ty new-params-map) env))
+
+           (res:variant
+             (hash-ref data-var-syms var-name)
+             new-param-names
+             (map convert-field fields)
+             (for/fold:
+                 ((ty : res:Type (hash-ref data-type-types name)))
+                 ((param new-param-names)
+                  (kind param-kinds))
+               (res:type-app ty (res:type-id param kind)))))))
+
+      (res:data
+        (hash-ref data-type-syms name)
+        (map resolve-variant variants))))
+
+  (: data-variants (HashTable Symbol res:variant))
+  (define data-variants
+    (for*/hash: : (HashTable Symbol res:variant)
+        ;; TODO fix this when TR doesn't suck so much
+        ((data (cast new-datas (Listof res:data)))
+         (variant (res:data-variants data)))
+      (values (res:variant-name variant) variant)))
+
 
 
 
@@ -335,7 +369,11 @@
              (define-values (new-arg new-env)
                (resolve-pattern arg env))
              (values (cons new-arg new-args) new-env)))
-         (values (res:constructor-pattern (hash-ref data-variants name) (reverse new-args))
+         ;; TODO fix this when TR doesn't suck so much
+         (values (res:constructor-pattern
+                   (hash-ref (cast data-variants (HashTable Symbol res:variant))
+                             (hash-ref data-var-syms name))
+                   (reverse new-args))
                  new-env))))
     (resolve-expr expr module-var-ids))
 
@@ -349,33 +387,6 @@
       (match-define (src:defn name ty expr) defn)
       (res:defn (hash-ref defined-syms name) bogus-type-scheme (resolve-expr expr))))
 
-  (: new-datas (Listof res:data))
-  (define new-datas
-    (for/list ((data datas))
-      (match-define (src:data name params variants) data)
-      (define param-names (map (inst first Symbol Any) params))
-      (define param-kinds (map (inst second Symbol src:Kind Null) params))
-      (define new-name (hash-ref data-type-syms name))
-      (define new-param-names (map unique param-names))
-      (define new-params-map
-        (make-immutable-hash (map (inst cons Symbol Symbol) param-names new-param-names)))
-
-      (define new-env
-        (for/hash: : (HashTable Symbol src:Kind)
-                   ((new-param-name new-param-names)
-                    (param-kind param-kinds))
-          (values new-param-name param-kind)))
-
-      (define (resolve-variant variant)
-        (match variant
-          ((src:variant name fields)
-           (hash-ref data-variants name)
-           #;
-           (res:variant
-             (hash-ref data-var-syms name)
-             (for/list: : (Listof res:Type) ((field : src:Type fields))
-               (convert-type (rename-type field new-params-map) new-env))))))
-      (res:data new-name (map resolve-variant variants))))
 
   (: new-exports res:exports)
   (define new-exports
