@@ -13,11 +13,6 @@
 
 (provide resolve-module resolve-modules)
 
-(: hash-value-map (All (a b c) ((b -> c) (HashTable a b) -> (HashTable a c))))
-(define (hash-value-map fn hash)
-  (make-immutable-hash
-    (hash-map hash (lambda: ((k : a) (v : b)) (cons k (fn v))))))
-
 ;; Makes all identifiers bound locally within a definition unique
 (: unique-defn (src:defn -> src:defn))
 (define (unique-defn defn)
@@ -137,13 +132,8 @@
         (match variant
           ((src:variant var-name fields)
            (define new-param-names (map unique param-names))
-           (define new-params-map
-             (make-immutable-hash (map (inst cons Symbol Symbol) param-names new-param-names)))
-           (define env
-             (for/hash: : (HashTable Symbol src:Kind)
-                        ((new-param-name new-param-names)
-                         (param-kind param-kinds))
-               (values new-param-name param-kind)))
+           (define new-params-map (make-immutable-hash* param-names new-param-names))
+           (define env (make-immutable-hash* new-param-names param-kinds))
 
            (: convert-field (src:Type -> res:Type))
            (define (convert-field ty)
@@ -267,26 +257,21 @@
   ;; TODO clean up with extracting from the variants
   (: data-var-type-schemes (HashTable Symbol res:type-scheme))
   (define data-var-type-schemes
-    (apply hash-union (ann (make-immutable-hash empty) (HashTable Symbol res:type-scheme))
+    (apply hash-union
       (for/list: : (Listof (HashTable Symbol res:type-scheme))
           ((data : src:data datas))
         (match-define (src:data name params variants) data)
         (define param-names (map (inst first Symbol Any) params))
         (define param-kinds (map (inst second Symbol src:Kind Null) params))
         (define new-param-names (map unique param-names))
-        (define new-params-map
-          (make-immutable-hash (map (inst cons Symbol Symbol) param-names new-param-names)))
+        (define new-params-map (make-immutable-hash* param-names new-param-names))
         (define new-params
           (for/list: : (Listof (List Symbol src:Kind))
               ((name new-param-names)
                (kind param-kinds))
             (list name kind)))
 
-        (define new-env
-          (for/hash: : (HashTable Symbol src:Kind)
-                     ((new-param-name new-param-names)
-                      (param-kind param-kinds))
-            (values new-param-name param-kind)))
+        (define new-env (make-immutable-hash* new-param-names param-kinds))
         (define return-type
           (for/fold: ((t : res:Type (hash-ref module-type-ids name)))
                      ((param-kind : src:Kind  param-kinds)
@@ -305,13 +290,12 @@
                      (convert-type (rename-type field new-params-map) module-type-ids new-env))
                      t))))))
 
-        (make-immutable-hash
-          (map (inst cons Symbol res:type-scheme)
-               (map src:variant-name variants)
-               (map convert-variant variants))))))
+        (make-immutable-hash*
+          (map src:variant-name variants)
+          (map convert-variant variants)))))
 
   (: module-var-ids (HashTable Symbol (U res:id res:toplevel-id)))
-  (define module-var-ids 
+  (define module-var-ids
     (let ((inject (lambda: ((sym : Symbol)) (ann (res:toplevel-id module-name sym bogus-type) (U res:id res:toplevel-id)))))
       ;; TODO fix when TR doesn't suck so much
       (hash-union (hash-value-map (lambda: ((id : res:toplevel-id)) (ann id (U res:id res:toplevel-id)))
