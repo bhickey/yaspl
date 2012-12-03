@@ -37,7 +37,7 @@
       (lambda (e acc)
         (cons (f e) acc))
       null l))
-#;
+
   (defn filter (f l)
     (All (a) ((a -> bool) -> (List a) -> (List a)))
     (foldr
@@ -45,4 +45,4 @@
         (case (f e)
           ((True) -> (cons e acc))
           ((False) -> acc)))
-        i null)))
+        l null)))

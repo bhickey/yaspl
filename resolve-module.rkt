@@ -306,8 +306,18 @@
                   (hash-value-map inject defined-syms)
                   (hash-value-map inject data-var-syms))))
 
+  (: module-pattern-ids (HashTable Symbol res:variant))
+  (define module-pattern-ids
+    (hash-union
+      imported-patterns
+      (for/hash: : (HashTable Symbol res:variant)
+         ((key (in-hash-keys data-var-syms)))
+         (values key (hash-ref data-variants (hash-ref data-var-syms key))))))
 
 
+
+  ;; TODO reenable this when it works
+  #; #;
   (: substitution (HashTable Symbol res:Type))
   (define substitution
     (infer-types defns
@@ -365,8 +375,7 @@
              (values (cons new-arg new-args) new-env)))
          ;; TODO fix this when TR doesn't suck so much
          (values (res:constructor-pattern
-                   (hash-ref (cast data-variants (HashTable Symbol res:variant))
-                             (hash-ref data-var-syms name))
+                   (hash-ref module-pattern-ids name)
                    (reverse new-args))
                  new-env))))
     (resolve-expr expr module-var-ids))
@@ -396,8 +405,11 @@
         (match (hash-ref module-var-ids name)
           ((res:toplevel-id (== module-name) new-name type)
            (list new-name (res:var-export name bogus-type-scheme)))))
-      ;; TODO add pattern exports
-      null))
+      (for/list: : (Listof (List Symbol res:pattern-export))
+          ((name (filter (lambda: ((name : Symbol)) (hash-has-key? data-var-syms name))
+                         (map src:export-name exports))))
+          (define new-name (hash-ref data-var-syms name))
+          (list new-name (res:pattern-export name (hash-ref module-pattern-ids name))))))
 
 
   (: new-imports (Listof Symbol))
