@@ -10,6 +10,9 @@
 (require/typed "type-inference.rkt"
   (infer-types ((Listof src:defn) (HashTable Symbol res:type-scheme) -> (HashTable Symbol res:Type))))
 
+;; Get rid of this when TR doesn't suck
+(: pair (All (a b) (a b -> (List a b))))
+(define (pair a b) (list a b))
 
 (provide resolve-module resolve-modules)
 
@@ -76,6 +79,14 @@
     ((src:ty-app op arg) (src:ty-app (rename-type op env) (rename-type arg env)))
     ((src:id-ty v) (src:id-ty (hash-ref env v (lambda () v))))))
 
+(: rename-res:type (res:Type (HashTable Symbol Symbol) -> res:Type))
+(define (rename-res:type ty env)
+  (match ty
+    ((res:type-constructor _ _ _) ty)
+    ((res:type-app op arg) (res:type-app (rename-res:type op env) (rename-res:type arg env)))
+    ((res:type-id v k) (res:type-id (hash-ref env v (lambda () v)) k))))
+
+
 
 (: bogus-type-scheme res:type-scheme)
 (define bogus-type-scheme
@@ -133,6 +144,8 @@
           ((src:variant var-name fields)
            (define new-param-names (map unique param-names))
            (define new-params-map (make-immutable-hash* param-names new-param-names))
+           ;; Fix this when TR doesn't suck
+           (define new-params (map (inst pair Symbol src:Kind) new-param-names param-kinds))
            (define env (make-immutable-hash* new-param-names param-kinds))
 
            (: convert-field (src:Type -> res:Type))
@@ -141,7 +154,7 @@
 
            (res:variant
              (hash-ref data-var-syms var-name)
-             new-param-names
+             new-params
              (map convert-field fields)
              (for/fold:
                  ((ty : res:Type type))
@@ -156,6 +169,25 @@
   (values
     data-var-syms
     new-datas))
+
+(: res:variant->type-scheme (res:variant -> res:type-scheme))
+(define (res:variant->type-scheme variant)
+  (match variant
+    ((res:variant variant-name params args type)
+     (define param-names (map (inst first Symbol src:Kind) params))
+     (define param-kinds (map (inst second Symbol src:Kind Nothing) params))
+     (define new-param-names (map unique param-names))
+     (define new-params-map (make-immutable-hash* param-names new-param-names))
+     (define new-params (map (inst pair Symbol src:Kind) new-param-names param-kinds))
+     (res:type-scheme
+       new-params
+       (for/fold: ((t : res:Type (rename-res:type type new-params-map)))
+                  ((arg : res:Type (reverse args)))
+         (res:type-app
+           (res:type-app res:fun-type-constructor
+             (rename-res:type arg new-params-map))
+             t))))))
+
 
 
 (: resolve-module (src:module res:module-interfaces -> res:module))
@@ -253,46 +285,17 @@
                         ((param : (List Symbol src:Kind) params))
                       (values (first param) (second param)))))))))
 
-
-  ;; TODO clean up with extracting from the variants
   (: data-var-type-schemes (HashTable Symbol res:type-scheme))
   (define data-var-type-schemes
     (apply hash-union
       (for/list: : (Listof (HashTable Symbol res:type-scheme))
-          ((data : src:data datas))
-        (match-define (src:data name params variants) data)
-        (define param-names (map (inst first Symbol Any) params))
-        (define param-kinds (map (inst second Symbol src:Kind Null) params))
-        (define new-param-names (map unique param-names))
-        (define new-params-map (make-immutable-hash* param-names new-param-names))
-        (define new-params
-          (for/list: : (Listof (List Symbol src:Kind))
-              ((name new-param-names)
-               (kind param-kinds))
-            (list name kind)))
-
-        (define new-env (make-immutable-hash* new-param-names param-kinds))
-        (define return-type
-          (for/fold: ((t : res:Type (hash-ref module-type-ids name)))
-                     ((param-kind : src:Kind  param-kinds)
-                      (new-param-name : Symbol new-param-names))
-            (res:type-app t (res:type-id new-param-name param-kind))))
-
-        (define (convert-variant variant)
-          (match variant
-            ((src:variant _ fields)
-             (res:type-scheme
-               new-params
-               (for/fold: ((t : res:Type return-type))
-                          ((field : src:Type (reverse fields)))
-                 (res:type-app 
-                   (res:type-app res:fun-type-constructor
-                     (convert-type (rename-type field new-params-map) module-type-ids new-env))
-                     t))))))
-
+          ((data : src:data datas)
+           (new-data new-datas))
+        (match-define (src:data _ _ variants) data)
+        (match-define (res:data _ new-variants) new-data)
         (make-immutable-hash*
           (map src:variant-name variants)
-          (map convert-variant variants)))))
+          (map res:variant->type-scheme new-variants)))))
 
   (: module-var-ids (HashTable Symbol (U res:id res:toplevel-id)))
   (define module-var-ids

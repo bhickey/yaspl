@@ -73,7 +73,7 @@
                (variants : (Listof variant))) #:transparent)
 (struct: variant
   ((name : Symbol)
-   (params : (Listof Symbol))
+   (params : (Listof (List Symbol Kind)))
    (args : (Listof Type))
    (type : Type)) #:transparent)
 
