@@ -2,7 +2,9 @@
 
 (require 
   "calc-struct.rkt"
-  racket-llvm/unsafe)
+  racket-llvm/safe
+  (only-in racket-llvm/unsafe LLVMLinkInJIT)
+  (only-in racket-llvm/simple llvm:optimize-module llvm-module-description))
 
 (define context (LLVMContextCreate))
 (define standard-builder (LLVMCreateBuilderInContext context))
@@ -109,7 +111,6 @@
   (define entry  (LLVMAppendBasicBlockInContext context top-fun "entry"))
   (LLVMPositionBuilderAtEnd standard-builder entry)
   (LLVMBuildRet standard-builder (emit expr))
-  (LLVMDumpModule module)
   (LLVMDisposeBuilder standard-builder))
 
 (compile (Binop '* (Binop '- 7 5) (Binop '+ 1 1)))
@@ -118,6 +119,8 @@
  (when err
    (display err) (exit 1)))
 
+(void (llvm:optimize-module module))
+(display (llvm-module-description module))
 (LLVMLinkInJIT)
 (define ee (LLVMCreateExecutionEngineForModule module))
 
