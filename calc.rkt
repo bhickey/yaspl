@@ -12,44 +12,8 @@
 (define int-type (LLVMInt32TypeInContext context))
 (define fun-type1 (LLVMFunctionType int-type (list int-type int-type) false))
 (define fun-type2 (LLVMFunctionType int-type (list) false))
-(define add-fun (LLVMAddFunction module "add" fun-type1))
-(define sub-fun (LLVMAddFunction module "sub" fun-type1))
-(define mul-fun (LLVMAddFunction module "mul" fun-type1))
 (define div-fun (LLVMAddFunction module "div" fun-type1))
 (define top-fun (LLVMAddFunction module "top" fun-type2))
-
-(let ()
-  (define x (LLVMGetParam add-fun 0))
-  (define y (LLVMGetParam add-fun 1))
-  (define builder (LLVMCreateBuilderInContext context))
-  (define entry  (LLVMAppendBasicBlockInContext context add-fun "entry"))
-  (LLVMSetValueName x "x")
-  (LLVMSetValueName y "y")
-  (LLVMPositionBuilderAtEnd builder entry)
-  (LLVMBuildRet builder (LLVMBuildAdd builder x y "ans"))
-  (LLVMDisposeBuilder builder))
-
-(let ()
-  (define x (LLVMGetParam sub-fun 0))
-  (define y (LLVMGetParam sub-fun 1))
-  (define builder (LLVMCreateBuilderInContext context))
-  (define entry  (LLVMAppendBasicBlockInContext context sub-fun "entry"))
-  (LLVMSetValueName x "x")
-  (LLVMSetValueName y "y")
-  (LLVMPositionBuilderAtEnd builder entry)
-  (LLVMBuildRet builder (LLVMBuildSub builder x y "ans"))
-  (LLVMDisposeBuilder builder))
-
-(let ()
-  (define x (LLVMGetParam mul-fun 0))
-  (define y (LLVMGetParam mul-fun 1))
-  (define builder (LLVMCreateBuilderInContext context))
-  (define entry  (LLVMAppendBasicBlockInContext context mul-fun "entry"))
-  (LLVMSetValueName x "x")
-  (LLVMSetValueName y "y")
-  (LLVMPositionBuilderAtEnd builder entry)
-  (LLVMBuildRet builder (LLVMBuildMul builder x y "ans"))
-  (LLVMDisposeBuilder builder))
 
 #|
  | int div(int x, int y) {
@@ -58,6 +22,7 @@
  |   return x / y;
  | }
  |#
+
 (let ()
   (define x (LLVMGetParam div-fun 0))
   (define y (LLVMGetParam div-fun 1))
@@ -86,26 +51,22 @@
  (when err
    (display err) (exit 1)))
 
-(define (get-opt opt)
-  (match opt
-         ('+ add-fun)
-         ('- sub-fun)
-         ('* mul-fun)
-         ('/ div-fun)))
-
 (define (emit-int v) (LLVMConstInt int-type v #t))
 
-(define (emit-binop opt arg0 arg1)
-  (LLVMBuildCall standard-builder opt (list arg0 arg1) "opt"))
+(define (emit-binop opt x y)
+  (match opt
+         ('+ (LLVMBuildAdd standard-builder x y "sum"))
+         ('- (LLVMBuildSub standard-builder x y "difference"))
+         ('* (LLVMBuildMul standard-builder x y "product"))
+         ('/ (LLVMBuildCall standard-builder div-fun (list x y) "quotient"))))
 
 (define (emit expr)
   (match expr
          ((? integer? n) (emit-int n))
          ((Binop op lhs rhs) 
           (let ((lhs-res (emit lhs))
-                (rhs-res (emit rhs))
-                (prim-opt (get-opt op)))
-            (emit-binop prim-opt lhs-res rhs-res)))))
+                (rhs-res (emit rhs)))
+            (emit-binop op lhs-res rhs-res)))))
 
 (define (compile expr)
   (define entry  (LLVMAppendBasicBlockInContext context top-fun "entry"))
@@ -113,7 +74,7 @@
   (LLVMBuildRet standard-builder (emit expr))
   (LLVMDisposeBuilder standard-builder))
 
-(compile (Binop '* (Binop '- 7 5) (Binop '+ 1 1)))
+(compile (Binop '* (Binop '- 7 5) (Binop '/ (Binop '+ 1 1) 1)))
 
 (let-values (((err) (LLVMVerifyModule module 'LLVMReturnStatusAction)))
  (when err
