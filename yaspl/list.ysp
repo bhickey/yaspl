@@ -1,5 +1,5 @@
 (module list
-  (import bool)
+  (import bool pair maybe)
   (export null cons List single reverse)
 
   (data List (t)
@@ -31,12 +31,34 @@
       ((null) -> acc)
       ((cons e rest) -> (fn e (foldr fn acc rest)))))
 
+  (defn build (next v)
+    (All (a b) ((a -> (Maybe (Pair a b))) -> a -> (List b)))
+    (case (next v)
+      ((nothing) -> null)
+      ((just e) ->
+       (case e
+         ((pair a b) -> (cons b (build next a)))))))
+
   (defn map (f l)
     (All (a b) ((a -> b) -> (List a) -> (List b)))
     (foldr
       (lambda (e acc)
         (cons (f e) acc))
       null l))
+
+  (defn zipWith (f l1 l2)
+    (All (a b c) ((a -> b -> c) -> (List a) -> (List b) -> (List c)))
+    (build
+      (lambda (e)
+        (case e
+          ((pair l1 l2) ->
+           (case l1
+             ((null) -> nothing)
+             ((cons e1 r1) -> 
+              (case l2 
+                ((null) -> nothing)
+                ((cons e2 r2) -> (just (pair (f e1 e2) (pair r1 r2))))))))))
+      (pair l1 l2)))
 
   (defn filter (f l)
     (All (a) ((a -> bool) -> (List a) -> (List a)))

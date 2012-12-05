@@ -41,9 +41,10 @@
    ((res:type-constructor _ _ _) (const-ty t))
    ((res:type-id id _) (dict-ref env id))))
 
+;; TODO combine this with convert-type
 (define (convert-type-scheme t)
   (match t
-   ((res:type-scheme (list (list poly-names kinds) ...) body)
+   ((res:type-abs (list (list poly-names kinds) ...) body)
     (define new-names (map unique poly-names))
     (define env
       (for/hash ((name poly-names) (new-name new-names))
@@ -72,7 +73,7 @@
   (define/contract (get-constructor-constraints constructor)
       (-> symbol? (values term/c (listof term/c)))
 
-    (match-define (res:type-scheme (list (list poly-names kinds) ...) body)
+    (match-define (res:type-abs (list (list poly-names kinds) ...) body)
       (dict-ref full-env constructor))
     (define env
       (for/hash ((arg poly-names))

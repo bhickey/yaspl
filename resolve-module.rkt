@@ -8,7 +8,7 @@
   (prefix-in res: "resolved-structures.rkt"))
 
 (require/typed "type-inference.rkt"
-  (infer-types ((Listof src:defn) (HashTable Symbol res:type-scheme) -> (HashTable Symbol res:Type))))
+  (infer-types ((Listof src:defn) (HashTable Symbol res:Type) -> (HashTable Symbol res:Type))))
 
 ;; Get rid of this when TR doesn't suck
 (: pair (All (a b) (a b -> (List a b))))
@@ -86,11 +86,6 @@
     ((res:type-app op arg) (res:type-app (rename-res:type op env) (rename-res:type arg env)))
     ((res:type-id v k) (res:type-id (hash-ref env v (lambda () v)) k))))
 
-
-
-(: bogus-type-scheme res:type-scheme)
-(define bogus-type-scheme
-  (res:type-scheme null (res:type-id 'bogus (src:type-kind))))
 
 (: bogus-type res:Type)
 (define bogus-type
@@ -170,8 +165,8 @@
     data-var-syms
     new-datas))
 
-(: res:variant->type-scheme (res:variant -> res:type-scheme))
-(define (res:variant->type-scheme variant)
+(: res:variant->type (res:variant -> res:Type))
+(define (res:variant->type variant)
   (match variant
     ((res:variant variant-name params args type)
      (define param-names (map (inst first Symbol src:Kind) params))
@@ -179,7 +174,7 @@
      (define new-param-names (map unique param-names))
      (define new-params-map (make-immutable-hash* param-names new-param-names))
      (define new-params (map (inst pair Symbol src:Kind) new-param-names param-kinds))
-     (res:type-scheme
+     (res:type-abs
        new-params
        (for/fold: ((t : res:Type (rename-res:type type new-params-map)))
                   ((arg : res:Type (reverse args)))
@@ -271,31 +266,30 @@
 
 
 
-  (: defined-var-type-schemes (HashTable Symbol res:type-scheme))
-  (define defined-var-type-schemes
-    (let ()
-      (for/hash: : (HashTable Symbol res:type-scheme) ((defn defns))
-        (match-define (src:type-scheme params type) (src:defn-type defn))
-        (values (src:defn-name defn)
-                (res:type-scheme params
-                  (convert-type
-                    type
-                    module-type-ids
-                    (for/hash: : (HashTable Symbol src:Kind)
-                        ((param : (List Symbol src:Kind) params))
-                      (values (first param) (second param)))))))))
+  (: defined-var-types (HashTable Symbol res:Type))
+  (define defined-var-types
+    (for/hash: : (HashTable Symbol res:Type) ((defn defns))
+      (match-define (src:type-scheme params type) (src:defn-type defn))
+      (values (src:defn-name defn)
+              (res:type-abs params
+                (convert-type
+                  type
+                  module-type-ids
+                  (for/hash: : (HashTable Symbol src:Kind)
+                      ((param : (List Symbol src:Kind) params))
+                    (values (first param) (second param))))))))
 
-  (: data-var-type-schemes (HashTable Symbol res:type-scheme))
-  (define data-var-type-schemes
+  (: data-var-types (HashTable Symbol res:Type))
+  (define data-var-types
     (apply hash-union
-      (for/list: : (Listof (HashTable Symbol res:type-scheme))
+      (for/list: : (Listof (HashTable Symbol res:Type))
           ((data : src:data datas)
            (new-data new-datas))
         (match-define (src:data _ _ variants) data)
         (match-define (res:data _ new-variants) new-data)
         (make-immutable-hash*
           (map src:variant-name variants)
-          (map res:variant->type-scheme new-variants)))))
+          (map res:variant->type new-variants)))))
 
   (: module-var-ids (HashTable Symbol (U res:id res:toplevel-id)))
   (define module-var-ids
@@ -315,16 +309,15 @@
          (values key (hash-ref data-variants (hash-ref data-var-syms key))))))
 
 
-
-  ;; TODO reenable this when it works
   #; #;
   (: substitution (HashTable Symbol res:Type))
   (define substitution
     (infer-types defns
                  (hash-union
+                   (
                    ;; TODO fix when TR doesn't suck so much
-                   (cast defined-var-type-schemes (HashTable Symbol res:type-scheme))
-                   (cast data-var-type-schemes (HashTable Symbol res:type-scheme)))))
+                   (cast defined-var-types (HashTable Symbol res:Type))
+                   (cast data-var-types (HashTable Symbol res:Type))))))
 
 
   (: resolve-expr (src:Expression -> res:Expression))
@@ -388,7 +381,7 @@
   (define new-defns
     (for/list ((defn defns))
       (match-define (src:defn name ty expr) defn)
-      (res:defn (hash-ref defined-syms name) bogus-type-scheme (resolve-expr expr))))
+      (res:defn (hash-ref defined-syms name) bogus-type (resolve-expr expr))))
 
 
   (: new-exports res:exports)
@@ -404,7 +397,7 @@
                          (map src:export-name exports))))
         (match (hash-ref module-var-ids name)
           ((res:toplevel-id (== module-name) new-name type)
-           (list new-name (res:var-export name bogus-type-scheme)))))
+           (list new-name (res:var-export name bogus-type)))))
       (for/list: : (Listof (List Symbol res:pattern-export))
           ((name (filter (lambda: ((name : Symbol)) (hash-has-key? data-var-syms name))
                          (map src:export-name exports))))

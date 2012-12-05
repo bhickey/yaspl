@@ -55,7 +55,7 @@
 
 
 (define-syntax-class type-scheme
-  (pattern ((~datum All) (vars:kind-variable ...) t:type)
+  (pattern ((~datum All) ~! (vars:kind-variable ...) t:type)
            #:attr v (src:type-scheme (map list (attribute vars.name) (attribute vars.kind))
                                      (attribute t.v)))
   (pattern t:type
@@ -78,7 +78,7 @@
            #:attr v (src:id-ty (attribute id.v))))
 
 (define-syntax-class data
-  (pattern ((~datum data) ~! name:symbol (params:kind-variable ...) var:variant ...)
+  (pattern ((~datum data) ~! name:symbol (params:kind-variable ...) var:variant ...+)
            #:attr v (src:data
                       (attribute name.v)
                       (map list (attribute params.name) (attribute params.kind))
@@ -95,11 +95,11 @@
  (pattern i:integer #:attr v (src:int (syntax-e #'i)))
  (pattern s:str #:attr v (src:str (syntax-e #'s)))
  (pattern s:symbol #:attr v (src:id (attribute s.v)))
- (pattern ((~datum lambda) (args:symbol ...) body:expr)
+ (pattern ((~datum lambda) ~! (args:symbol ...+) body:expr)
           #:attr v (src:lam*
                      (attribute args.v)
                      (attribute body.v)))
- (pattern ((~datum case) e:expr c:clause ...)
+ (pattern ((~datum case) ~! e:expr c:clause ...+)
           #:attr v (src:case
                      (attribute e.v)
                      (attribute c.v)))

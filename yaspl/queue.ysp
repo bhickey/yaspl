@@ -1,19 +1,28 @@
 (module queue
   (import bool list maybe pair)
-  (export)
+  (export Queue push pop main)
 
-  (data queue (a)
-    (queueOf (List a) (List a)))
+  (data Queue (a)
+    (queue (List a) (List a)))
 
-  (defn push (q a)
-    (All (a) (Queue a -> a -> Queue a))
+  (defn push (a q)
+    (All (a) (a -> (Queue a) -> (Queue a)))
     (case q
-      ((queueOf r f) -> (queueOf r (cons f)))))
+      ((queue r f) -> (queue r (cons f)))))
 
   (defn pop (q)
-    (All (a) (queue a -> pair (queue a) (Maybe a)))
+    (All (a) ((Queue a) -> (Maybe (Pair (Queue a) a))))
     (case q
-      ((queueOf emptyList emptyList) -> (pair q nothing))
-      ((queueOf (listOf a b) c) -> (pair (queueOf b c) (just a)))
-      ((queueOf emptyList l) -> (pop (queueOf (reverse l) emptyList)))))
+      ((queue r f) ->
+       (case r
+         ((null) ->
+           (case (reverse f)
+             ((null) -> nothing)
+             ((cons x r) -> (just (pair (queue r null) x)))))
+         ((cons x r) ->
+           (just (pair (queue r f) x)))))))
+
+  (defn main (arg)
+    (All (a) (a -> a))
+    (pop (push arg (push arg (queue null null)))))
 )

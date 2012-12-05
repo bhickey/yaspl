@@ -32,7 +32,7 @@
 
 (struct: var-export
   ((name : Symbol)
-   (type : type-scheme)) #:transparent)
+   (type : Type)) #:transparent)
 
 (struct: pattern-export
   ((name : Symbol)
@@ -40,17 +40,18 @@
 
 
 
-(struct: type-scheme ((args : (Listof (List Symbol Kind)))
-                      (base : Type)) #:transparent)
 
 (: type->kind (Type -> Kind))
 (define (type->kind ty)
   ;; TODO
   (src:type-kind))
 
-(define-type Type (U type-constructor type-app type-id))
+(define-type Type (U type-constructor type-app type-id type-abs))
 (define-predicate type/c Type)
 
+
+(struct: type-abs ((args : (Listof (List Symbol Kind)))
+                   (base : Type)) #:transparent)
 (struct: type-constructor
   ((module : Symbol)
    (name : Symbol)
@@ -78,7 +79,7 @@
    (type : Type)) #:transparent)
 
 
-(struct: defn ((name : Symbol) (type : type-scheme) (expr : Expression)) #:transparent)
+(struct: defn ((name : Symbol) (type : Type) (expr : Expression)) #:transparent)
 
 
 (define-type Expression (U int str id id toplevel-id lam app case make-variant))

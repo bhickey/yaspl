@@ -8,11 +8,26 @@
    (succ Nat))
   
   (defn add (x y) (Nat -> Nat -> Nat)
+    (case x
+      ((zero) -> y)
+      ((succ z) -> (succ (add z y)))))
+
+  (defn mult (x y) (Nat -> Nat -> Nat)
     (case y
-      ((zero) -> x)
-      ((succ z) -> (succ (add x z)))))
+      ((zero) -> zero)
+      ((succ z) -> (add x (mult x z)))))
+
+  (defn fact (x) (Nat -> Nat)
+    (case x
+      ((zero) -> (succ zero))
+      ((succ z) -> (mult x (fact z)))))
+
+  (defn square (x) (Nat -> Nat)
+    (mult x x))
+
+
 
   (defn main (arg) (Nat -> Nat)
-    (add (add arg (succ zero)) (succ (succ arg))))
+    (mult (succ arg) (fact (add (add arg (succ zero)) (succ (square (succ arg)))))))
 
 )
