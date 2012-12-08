@@ -30,15 +30,15 @@
 
 ;; Type Schemes
 (struct: type-scheme ((args : (Listof (List Symbol Kind)))
-                      (base : Type)))
+                      (base : Type)) #:transparent)
 
 ;; Types
 (define-type Type (U fun-ty id-ty int-ty string-ty ty-app))
-(struct: int-ty ())
-(struct: string-ty ())
-(struct: fun-ty ((arg : Type) (result : Type)))
-(struct: ty-app ((op : Type) (arg : Type)))
-(struct: id-ty ((val : Symbol)))
+(struct: int-ty () #:transparent)
+(struct: string-ty () #:transparent)
+(struct: fun-ty ((arg : Type) (result : Type)) #:transparent)
+(struct: ty-app ((op : Type) (arg : Type)) #:transparent)
+(struct: id-ty ((val : Symbol)) #:transparent)
 
 (define-type Expression (U int str id lam app case))
 (define-predicate expression/c Expression)

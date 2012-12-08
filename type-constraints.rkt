@@ -81,10 +81,10 @@
       (match term
        ((identifier-term id-other)
         (when (equal? id id-other)
-          (error 'unify "Occurs check")))
+          (error 'unify "Occurs check ~a ~a" id term)))
        ((unification-term id-other)
         (when (equal? id id-other)
-          (error 'unify "Occurs check")))
+          (error 'unify "Occurs check ~a ~a" id term)))
        ((const-term val) (void))
        ((app-term op arg)
         (recur op) (recur arg))))

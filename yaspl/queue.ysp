@@ -8,7 +8,7 @@
   (defn push (a q)
     (All (a) (a -> (Queue a) -> (Queue a)))
     (case q
-      ((queue r f) -> (queue r (cons f)))))
+      ((queue r f) -> (queue r (cons a f)))))
 
   (defn pop (q)
     (All (a) ((Queue a) -> (Maybe (Pair (Queue a) a))))
@@ -23,6 +23,6 @@
            (just (pair (queue r f) x)))))))
 
   (defn main (arg)
-    (All (a) (a -> a))
+    (All (a) (a -> (Maybe (Pair (Queue a) a))))
     (pop (push arg (push arg (queue null null)))))
 )

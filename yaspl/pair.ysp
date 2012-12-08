@@ -1,6 +1,16 @@
 (module pair
   (import)
-  (export pair Pair)
+  (export pair Pair first second)
 
   (data Pair (a b)
-    (pair a b)))
+    (pair a b))
+
+  (defn first (x)
+    (All (a b) ((Pair a b) -> a))
+    (case x
+      ((pair a b) -> a)))
+
+  (defn second (x)
+    (All (a b) ((Pair a b) -> b))
+    (case x
+      ((pair a b) -> b))))

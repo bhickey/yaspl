@@ -72,8 +72,9 @@
 (define-syntax-class type
   (pattern ((~seq tys:type (~datum ->)) ... ty:type)
            #:attr v (foldr src:fun-ty (attribute ty.v) (attribute tys.v)))
-  (pattern (tys:type ... ty:type)
-           #:attr v (foldr src:ty-app (attribute ty.v) (attribute tys.v)))
+  (pattern (ty:type tys:type ...)
+           #:attr v (foldl (lambda (arg acc) (src:ty-app acc arg))
+                           (attribute ty.v) (attribute tys.v)))
   (pattern (~and (~not (~datum ->)) id:symbol)
            #:attr v (src:id-ty (attribute id.v))))
 

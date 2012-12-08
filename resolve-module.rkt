@@ -95,7 +95,7 @@
 (define (rename v) (values v (unique v)))
 
 
-(: convert-type (src:Type (HashTable Symbol res:type-constructor) (HashTable Symbol src:Kind) -> res:Type))
+(: convert-type (src:Type (HashTable Symbol res:Type) (HashTable Symbol src:Kind) -> res:Type))
 (define (convert-type ty types env)
   (match ty
     ((src:int-ty) res:int-type-constructor)
@@ -112,7 +112,7 @@
           (lambda () (res:type-id val (hash-ref env val)))))))
 
 
-(: convert-data ((HashTable Symbol res:type-constructor)
+(: convert-data ((HashTable Symbol res:Type)
                  (Listof src:data) -> 
                  (values 
                    (HashTable Symbol Symbol)
@@ -158,7 +158,7 @@
                (res:type-app ty (res:type-id param kind)))))))
 
       (res:data
-        (res:type-constructor-name type)
+        (res:type-constructor-name (cast type res:type-constructor))
         (map resolve-variant variants))))
 
   (values
@@ -202,21 +202,27 @@
         ((interface imported-interfaces)
          (var (res:module-interface-var-exports interface)))
       (match-define (res:var-export var-name var-type) var)
-      ;;TODO let variables have polymorphic types
       (values var-name
               (res:toplevel-id
                 (res:module-interface-name interface)
                 var-name
-                bogus-type))))
+                var-type))))
 
-  (: imported-types (HashTable Symbol res:type-constructor))
+  (: imported-var-types (HashTable Symbol res:Type))
+  (define imported-var-types
+    (for/hash: : (HashTable Symbol res:Type)
+      ((var-name (hash-keys imported-var-ids)))
+      (match-define (res:toplevel-id _ _ type) (hash-ref imported-var-ids var-name))
+      (values var-name type)))
+
+  (: imported-types (HashTable Symbol res:Type))
   (define imported-types
-    (for*/hash: : (HashTable Symbol res:type-constructor)
+    (for*/hash: : (HashTable Symbol res:Type)
         ((interface imported-interfaces)
          (type (res:module-interface-type-exports interface)))
       (define mod-name (res:module-interface-name interface))
       (match-define (res:type-export type-name value) type)
-      (values type-name (res:type-constructor mod-name type-name (res:type->kind value)))))
+      (values type-name value)))
 
   (: imported-patterns (HashTable Symbol res:variant))
   (define imported-patterns
@@ -234,9 +240,9 @@
        (rename (src:defn-name defn))))
 
 
-  (: data-type-types (HashTable Symbol res:type-constructor))
+  (: data-type-types (HashTable Symbol res:Type))
   (define data-type-types
-    (for/hash: : (HashTable Symbol res:type-constructor)
+    (for/hash: : (HashTable Symbol res:Type)
         ((data datas))
       (match-define (src:data name params _) data)
       (values
@@ -248,7 +254,7 @@
                      ((arg : (List Symbol src:Kind) (reverse params)))
             (src:arr-kind (second arg) kind))))))
 
-  (: module-type-ids (HashTable Symbol res:type-constructor))
+  (: module-type-ids (HashTable Symbol res:Type))
   (define module-type-ids 
     (hash-union imported-types data-type-types))
 
@@ -293,12 +299,24 @@
 
   (: module-var-ids (HashTable Symbol (U res:id res:toplevel-id)))
   (define module-var-ids
-    (let ((inject (lambda: ((sym : Symbol)) (ann (res:toplevel-id module-name sym bogus-type) (U res:id res:toplevel-id)))))
-      ;; TODO fix when TR doesn't suck so much
-      (hash-union (hash-value-map (lambda: ((id : res:toplevel-id)) (ann id (U res:id res:toplevel-id)))
-                                  imported-var-ids)
-                  (hash-value-map inject defined-syms)
-                  (hash-value-map inject data-var-syms))))
+    ;; TODO fix when TR doesn't suck so much
+    (hash-union (hash-value-map (lambda: ((id : res:toplevel-id)) (ann id (U res:id res:toplevel-id)))
+                                imported-var-ids)
+                (for/hash: : (HashTable Symbol (U res:id res:toplevel-id))
+                           ((sym (hash-keys defined-syms)))
+                  (values sym
+                          (res:toplevel-id
+                            module-name
+                            (hash-ref defined-syms sym)
+                            (hash-ref defined-var-types sym))))
+                (for/hash: : (HashTable Symbol (U res:id res:toplevel-id))
+                           ((sym (hash-keys data-var-syms)))
+                  (values sym
+                          (res:toplevel-id
+                            module-name
+                            (hash-ref data-var-syms sym)
+                            (hash-ref data-var-types sym))))))
+
 
   (: module-pattern-ids (HashTable Symbol res:variant))
   (define module-pattern-ids
@@ -309,15 +327,12 @@
          (values key (hash-ref data-variants (hash-ref data-var-syms key))))))
 
 
-  #; #;
+  (: var-types (HashTable Symbol res:Type))
+  (define var-types
+     (hash-union imported-var-types defined-var-types data-var-types))
+
   (: substitution (HashTable Symbol res:Type))
-  (define substitution
-    (infer-types defns
-                 (hash-union
-                   (
-                   ;; TODO fix when TR doesn't suck so much
-                   (cast defined-var-types (HashTable Symbol res:Type))
-                   (cast data-var-types (HashTable Symbol res:Type))))))
+  (define substitution (infer-types defns var-types))
 
 
   (: resolve-expr (src:Expression -> res:Expression))
@@ -374,9 +389,6 @@
     (resolve-expr expr module-var-ids))
 
 
-
-
-
   (: new-defns (Listof res:defn))
   (define new-defns
     (for/list ((defn defns))
@@ -390,14 +402,14 @@
       (for/list: : (Listof (List Symbol res:type-export))
           ((name (filter (lambda: ((name : Symbol)) (hash-has-key? module-type-ids name))
                          (map src:export-name exports))))
-        (list (res:type-constructor-name (hash-ref module-type-ids name))
+        (list (res:type-constructor-name (cast (hash-ref module-type-ids name) res:type-constructor))
               (res:type-export name (hash-ref module-type-ids name))))
       (for/list: : (Listof (List Symbol res:var-export))
           ((name (filter (lambda: ((name : Symbol)) (hash-has-key? module-var-ids name))
                          (map src:export-name exports))))
         (match (hash-ref module-var-ids name)
           ((res:toplevel-id (== module-name) new-name type)
-           (list new-name (res:var-export name bogus-type)))))
+           (list new-name (res:var-export name (hash-ref var-types name))))))
       (for/list: : (Listof (List Symbol res:pattern-export))
           ((name (filter (lambda: ((name : Symbol)) (hash-has-key? data-var-syms name))
                          (map src:export-name exports))))
